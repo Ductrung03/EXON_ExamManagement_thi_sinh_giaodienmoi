@@ -134,7 +134,9 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Common\AppConfig.cs" />
+    <Compile Include="Common\AnswerSelectionLogger.cs" />
     <Compile Include="Common\Constant.cs" />
+    <Compile Include="Common\ConnectionLogger.cs" />
     <Compile Include="Common\Controllers.cs" />
     <Compile Include="Common\DTO.cs" />
     <Compile Include="Common\ExamAnswerHistoryEntry.cs" />

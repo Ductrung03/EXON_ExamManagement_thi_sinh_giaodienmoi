@@ -42,6 +42,16 @@ namespace DAO.DataProvider
         public string EndTimeMsText { get; set; }
         /// <summary>Tổng thời gian đã làm bài, định dạng hh:mm:ss:fff (mili giây). Chỉ có giá trị khi Status = FINISHED.</summary>
         public string TimeWorkedMsText { get; set; }
+        /// <summary>Unix ms thời điểm nộp bài</summary>
+        public long SubmitTimeUnixMs { get; set; }
+        /// <summary>Thời điểm nộp bài dạng dd-MM-yyyy HH:mm:ss.fff</summary>
+        public string SubmitTimeText { get; set; }
+        /// <summary>Tổng thời gian làm bài (ms)</summary>
+        public long TimeWorkedMs { get; set; }
+        /// <summary>Nguồn giờ: SERVER hoặc LOCAL</summary>
+        public string TimeSource { get; set; }
+        /// <summary>True nếu nộp bài lên DB thành công, False nếu thất bại hoặc chưa nộp</summary>
+        public bool SubmitSuccess { get; set; }
         //public List<int> {}
         public ContestantInformation()
 		{

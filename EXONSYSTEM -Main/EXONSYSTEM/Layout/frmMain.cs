@@ -124,6 +124,18 @@ namespace EXONSYSTEM
                 _stopwatch.Restart();
             }
 
+            AnswerSelectionLogger.Init(_serverTimeAtStart);
+            // Nếu thí sinh đăng nhập lại sau gián đoạn → giữ log cũ, ghi RECONNECT
+            // Nếu đăng nhập mới → xóa log cũ, ghi LOGIN
+            bool isReconnect = CI.Status == Constant.STATUS_DOING_BUT_INTERRUPT;
+            if (!isReconnect)
+            {
+                ConnectionLogger.Clear();
+            }
+            ConnectionLogger.Log(
+                isReconnect ? "RECONNECT" : "LOGIN",
+                string.Format("ContestantCode={0} ShiftID={1} Computer={2}", CI.ContestantCode, CI.ContestantShiftID, System.Net.Dns.GetHostName()));
+
             // Khởi tạo socket
             UT = new UserHelper.UserTransformation();
             UT.ComputerName = Dns.GetHostName();
@@ -1129,39 +1141,51 @@ namespace EXONSYSTEM
             }
 
             // Tính thời gian nộp bài trước khi lưu DB (dùng fallback nếu mất mạng)
-            DateTime submitTime = GetCurrentTimeWithFallback();
+            string _timeSource;
+            DateTime submitTime = GetCurrentTimeWithSource(out _timeSource);
             string endTimeMsText = submitTime.ToString("HH:mm:ss:fff");
+            string submitTimeText = submitTime.ToString("dd-MM-yyyy HH:mm:ss.fff");
+            long submitTimeUnixMs = (long)(submitTime - new DateTime(1970, 1, 1, 0, 0, 0, 0)).TotalMilliseconds;
             string timeWorkedMsText = null;
+            long timeWorkedMs = 0;
             try
             {
                 if (_isTimedOut)
                 {
-                    // Hết giờ tự động → thời gian làm = đúng bằng thời gian thi quy định
                     TimeSpan totalExam = TimeSpan.FromSeconds(CILogged.TimeOfTest);
                     timeWorkedMsText = totalExam.ToString(@"hh\:mm\:ss\:fff");
+                    timeWorkedMs = (long)totalExam.TotalMilliseconds;
                 }
                 else
                 {
                     int timeStartUnix = BUS.ContestantBUS.Instance.GetTimeStartFromContestant(CILogged.ContestantShiftID);
                     if (timeStartUnix > 0)
                     {
-                        DateTime startTime = Controllers.Instance.ConvertUnixToDateTime(timeStartUnix);
-                        TimeSpan worked = submitTime - startTime - TimeSpan.FromSeconds(ThoiGianBu);
-                        if (worked < TimeSpan.Zero) worked = TimeSpan.Zero;
-                        timeWorkedMsText = worked.ToString(@"hh\:mm\:ss\:fff");
+                        long timeStartMs = (long)timeStartUnix * 1000L;
+                        long thoiGianBuMs = (long)ThoiGianBu * 1000L;
+                        timeWorkedMs = submitTimeUnixMs - timeStartMs - thoiGianBuMs;
+                        if (timeWorkedMs < 0) timeWorkedMs = 0;
+                        timeWorkedMsText = TimeSpan.FromMilliseconds(timeWorkedMs).ToString(@"hh\:mm\:ss\:fff");
                     }
                 }
             }
             catch { }
 
             // Luôn ghi log local tại thời điểm click nộp bài (kể cả khi DB lưu thất bại)
-            WriteSubmitLog(rASH.TestScores ?? 0f, sResult, endTimeMsText, timeWorkedMsText, "SUBMIT_CLICK");
+            WriteSubmitLog(rASH.TestScores ?? 0f, sResult, submitTimeText, timeWorkedMsText, "SUBMIT_CLICK", _timeSource);
+            ConnectionLogger.Log("SUBMIT", string.Format("Score={0} Source={1}", rASH.TestScores, _timeSource));
+            ConnectionLogger.WriteToFile(CILogged.ContestantCode, CILogged.ContestantShiftID);
+            AnswerSelectionLogger.WriteToFile(CILogged.ContestantCode, CILogged.ContestantShiftID);
 
             AnswersheetBUS.Instance.PushAnswerSheet(rASH, out rEC, Sql);
             if (rEC.ErrorCode == Constant.STATUS_OK)
             {
                 CILogged.EndTimeMsText = endTimeMsText;
                 CILogged.TimeWorkedMsText = timeWorkedMsText;
+                CILogged.SubmitTimeUnixMs = submitTimeUnixMs;
+                CILogged.SubmitTimeText = submitTimeText;
+                CILogged.TimeWorkedMs = timeWorkedMs;
+                CILogged.TimeSource = _timeSource;
 
                 ChangeContestantStatusToFinished();
 
@@ -1220,7 +1244,7 @@ namespace EXONSYSTEM
                 return;
             }
 
-            frmViewExamHistory frm = new frmViewExamHistory(CILogged.ContestantShiftID);
+            frmViewExamHistory frm = new frmViewExamHistory(CILogged);
             frm.Show();
         }
         /// <summary>
@@ -2778,12 +2802,27 @@ namespace EXONSYSTEM
             }
         }
 
+        private DateTime GetCurrentTimeWithSource(out string source)
+        {
+            try
+            {
+                DateTime t = DAO.DAO.ConvertDateTime.GetDateTimeServer();
+                source = "SERVER";
+                return t;
+            }
+            catch
+            {
+                source = "LOCAL";
+                return _serverTimeAtStart + _stopwatch.Elapsed;
+            }
+        }
+
         /// <summary>
         /// Ghi log nộp bài ra file local tại C:\ProgramData\EXON\
         /// Dùng khi mất mạng không lưu được vào CSDL, để làm căn cứ xếp hạng sau.
         /// Format: key=value, mỗi dòng 1 field.
         /// </summary>
-        private void WriteSubmitLog(float score, float maxScore, string endTimeMsText, string timeWorkedMsText, string reason)
+        private void WriteSubmitLog(float score, float maxScore, string submitTimeText, string timeWorkedMsText, string reason, string timeSource = "SERVER")
         {
             try
             {
@@ -2803,10 +2842,11 @@ namespace EXONSYSTEM
                 lines.AppendLine("ContestantID=" + CILogged.ContestantID);
                 lines.AppendLine("Score=" + score.ToString("F2"));
                 lines.AppendLine("MaxScore=" + maxScore.ToString("F2"));
-                lines.AppendLine("EndTimeMsText=" + (endTimeMsText ?? ""));
+                lines.AppendLine("SubmitTimeText=" + (submitTimeText ?? ""));
                 lines.AppendLine("TimeWorkedMsText=" + (timeWorkedMsText ?? ""));
+                lines.AppendLine("TimeSource=" + timeSource);
                 lines.AppendLine("Reason=" + reason);
-                lines.AppendLine("LoggedAt=" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss:fff"));
+                lines.AppendLine("LoggedAt=" + DateTime.Now.ToString("dd-MM-yyyy HH:mm:ss.fff"));
                 lines.AppendLine("ComputerName=" + System.Net.Dns.GetHostName());
 
                 System.IO.File.WriteAllText(path, lines.ToString(), System.Text.Encoding.UTF8);
@@ -2831,6 +2871,7 @@ namespace EXONSYSTEM
             ContestantBUS.Instance.ChangeStatusContestant(CILogged, CLogged, out rEC, Sql);
             if (rEC.ErrorCode == Constant.STATUS_OK)
             {
+                CILogged.SubmitSuccess = true;
                 Log.Instance.WriteLog(Properties.Resources.MSG_LOG_INFO, "MAIN | CHANGE_STATUS_CONTESTANT | STATUS_FINISHED | ChangeContestantStatusToFinished", Controllers.Instance.HandleStringErrorController(rEC));
                 UpdateExamHistoryButtonState();
 
@@ -2914,10 +2955,15 @@ namespace EXONSYSTEM
                 {
                     // Đổi trạng thái thí sinh sang trạng thái  STATUS_DOING_BUT_INTERRUPT
                     CILogged.Status = Constant.STATUS_DOING_BUT_INTERRUPT;
+                    ConnectionLogger.Log("DISCONNECT", "FormClosing STATUS_DOING");
                     CILogged.IsDisconnected = true;
                     // ms fields để null khi gián đoạn (chưa nộp bài)
                     CILogged.EndTimeMsText = null;
                     CILogged.TimeWorkedMsText = null;
+                    CILogged.SubmitTimeText = null;
+                    CILogged.SubmitTimeUnixMs = 0;
+                    CILogged.TimeWorkedMs = 0;
+                    CILogged.TimeSource = null;
                     ContestantBUS.Instance.ChangeStatusContestant(CILogged, CLogged, out rEC, Sql);
                     if (rEC.ErrorCode == Constant.STATUS_OK)
                     {
@@ -2937,17 +2983,27 @@ namespace EXONSYSTEM
                     // Hết giờ (maxTime == 0): tính ms trước khi lưu FINISHED, dùng fallback nếu mất mạng
                     try
                     {
-                        DateTime endTimeNow = GetCurrentTimeWithFallback();
+                        string _srcTimeout;
+                        DateTime endTimeNow = GetCurrentTimeWithSource(out _srcTimeout);
                         CILogged.EndTimeMsText = endTimeNow.ToString("HH:mm:ss:fff");
+                        CILogged.SubmitTimeText = endTimeNow.ToString("dd-MM-yyyy HH:mm:ss.fff");
+                        CILogged.SubmitTimeUnixMs = (long)(endTimeNow - new DateTime(1970, 1, 1, 0, 0, 0, 0)).TotalMilliseconds;
+                        CILogged.TimeSource = _srcTimeout;
 
                         int timeStartUnix = BUS.ContestantBUS.Instance.GetTimeStartFromContestant(CILogged.ContestantShiftID);
                         if (timeStartUnix > 0)
                         {
-                            DateTime startTime = Controllers.Instance.ConvertUnixToDateTime(timeStartUnix);
-                            TimeSpan worked = endTimeNow - startTime - TimeSpan.FromSeconds(ThoiGianBu);
-                            if (worked < TimeSpan.Zero) worked = TimeSpan.Zero;
-                            CILogged.TimeWorkedMsText = worked.ToString(@"hh\:mm\:ss\:fff");
+                            long timeStartMs = (long)timeStartUnix * 1000L;
+                            long thoiGianBuMs = (long)ThoiGianBu * 1000L;
+                            long workedMs = CILogged.SubmitTimeUnixMs - timeStartMs - thoiGianBuMs;
+                            if (workedMs < 0) workedMs = 0;
+                            CILogged.TimeWorkedMs = workedMs;
+                            CILogged.TimeWorkedMsText = TimeSpan.FromMilliseconds(workedMs).ToString(@"hh\:mm\:ss\:fff");
                         }
+                        WriteSubmitLog(0f, 0f, CILogged.SubmitTimeText, CILogged.TimeWorkedMsText, "TIMEOUT", _srcTimeout);
+                        ConnectionLogger.Log("SUBMIT", string.Format("TIMEOUT Source={0}", _srcTimeout));
+                        ConnectionLogger.WriteToFile(CILogged.ContestantCode, CILogged.ContestantShiftID);
+                        AnswerSelectionLogger.WriteToFile(CILogged.ContestantCode, CILogged.ContestantShiftID);
                     }
                     catch { }
 

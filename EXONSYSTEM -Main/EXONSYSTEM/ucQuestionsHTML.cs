@@ -141,6 +141,7 @@ namespace EXONSYSTEM
             if (!_isRestoringAnswer)
             {
                 ExamAnswerHistoryStore.AddEntry(q.NO, selectedAnswerText, DateTime.Now);
+                AnswerSelectionLogger.Log(q.NO, selectedAnswerText);
             }
             // AnswersheetDetailBUS.Instance.PushAnswerSheetDetail(AD, out rEC);
             if (rEC.ErrorCode == Constant.STATUS_OK)

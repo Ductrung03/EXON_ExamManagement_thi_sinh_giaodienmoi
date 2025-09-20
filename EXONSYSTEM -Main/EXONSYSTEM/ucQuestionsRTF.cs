@@ -539,6 +539,7 @@ namespace EXONSYSTEM
 
             AD.AnswerContent = mrtfAnswer.Text;
             ExamAnswerHistoryStore.AddEntry(q.NO, "Tự luận: " + mrtfAnswer.Text, DateTime.Now);
+            AnswerSelectionLogger.Log(q.NO, "Tự luận: " + mrtfAnswer.Text);
 
             AD.LastTime = Controllers.Instance.ConvertDateTimeToUnix(DAO.DAO.ConvertDateTime.GetDateTimeServer());
             ErrorController rEC = new ErrorController();
@@ -580,6 +581,7 @@ namespace EXONSYSTEM
 
             AD.AnswerContent = mrtfAnswer.Rtf;
             ExamAnswerHistoryStore.AddEntry(q.NO, "Tự luận: " + mrtfAnswer.Text, DateTime.Now);
+            AnswerSelectionLogger.Log(q.NO, "Tự luận: " + mrtfAnswer.Text);
 
             AD.LastTime = Controllers.Instance.ConvertDateTimeToUnix(DAO.DAO.ConvertDateTime.GetDateTimeServer());
             ErrorController rEC = new ErrorController();
@@ -691,6 +693,7 @@ namespace EXONSYSTEM
             AD.ChoosenAnswer = int.Parse(mcbAnswer.SelectedValue.ToString());
             //AD.AnswerContent = mcbAnswer.Text;
             ExamAnswerHistoryStore.AddEntry(q.NO, "Ghép nối: " + mcbAnswer.Text, DateTime.Now);
+            AnswerSelectionLogger.Log(q.NO, "Ghép nối: " + mcbAnswer.Text);
             AD.LastTime = Controllers.Instance.ConvertDateTimeToUnix(DAO.DAO.ConvertDateTime.GetDateTimeServer());
             //TrangThaiThayDoi = true;
             AnswersheetDetailBUS.Instance.PushAnswerSheetDetail(AD, out rEC,Sql);
@@ -802,6 +805,7 @@ namespace EXONSYSTEM
                 if (!_isRestoringAnswer)
                 {
                     ExamAnswerHistoryStore.AddEntry(q.NO, selectedAnswerText, DateTime.Now);
+                    AnswerSelectionLogger.Log(q.NO, selectedAnswerText);
                 }
                 AD.LastTime = Controllers.Instance.ConvertDateTimeToUnix(DAO.DAO.ConvertDateTime.GetDateTimeServer());
                 AnswersheetDetailBUS.Instance.PushAnswerSheetDetail(AD, out rEC,Sql);

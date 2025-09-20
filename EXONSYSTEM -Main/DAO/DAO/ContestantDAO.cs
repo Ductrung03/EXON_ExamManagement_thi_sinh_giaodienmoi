@@ -843,7 +843,7 @@ namespace DAO.DAO
                     //    DB.SaveChanges();
                     //    DB.Entry(CSH).State = EntityState.Modified;
                     SqlCommand sqlcmd = new SqlCommand(
-                        "update CONTESTANTS_SHIFTS set Status=@status, EndTimeMsText=@endTimeMsText, TimeWorkedMsText=@timeWorkedMsText where ContestantShiftID=@id;",
+                        "update CONTESTANTS_SHIFTS set Status=@status, EndTimeMsText=@endTimeMsText, TimeWorkedMsText=@timeWorkedMsText, SubmitTimeUnixMs=@submitTimeUnixMs, SubmitTimeText=@submitTimeText, TimeWorkedMs=@timeWorkedMs where ContestantShiftID=@id;",
                         sql);
                     sqlcmd.Parameters.Add("@status", CI.Status);
                     sqlcmd.Parameters.Add("@id", CI.ContestantShiftID);
@@ -851,6 +851,9 @@ namespace DAO.DAO
                         (object)CI.EndTimeMsText ?? DBNull.Value);
                     sqlcmd.Parameters.AddWithValue("@timeWorkedMsText",
                         (object)CI.TimeWorkedMsText ?? DBNull.Value);
+                    sqlcmd.Parameters.AddWithValue("@submitTimeUnixMs", CI.SubmitTimeUnixMs > 0 ? (object)CI.SubmitTimeUnixMs : DBNull.Value);
+                    sqlcmd.Parameters.AddWithValue("@submitTimeText", (object)CI.SubmitTimeText ?? DBNull.Value);
+                    sqlcmd.Parameters.AddWithValue("@timeWorkedMs", CI.TimeWorkedMs > 0 ? (object)CI.TimeWorkedMs : DBNull.Value);
                     int row = 0;
                     while (row == 0)
                     {
