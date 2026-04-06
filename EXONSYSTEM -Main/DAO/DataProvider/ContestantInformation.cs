@@ -38,6 +38,10 @@ namespace DAO.DataProvider
         public int TimeToSubmit { get; set; }
         public int RoomDiagramID { get; set; }
 		public bool ReadOnly { get; set; }
+        /// <summary>Thời điểm nộp bài, định dạng HH:mm:ss:fff (mili giây). Chỉ có giá trị khi Status = FINISHED.</summary>
+        public string EndTimeMsText { get; set; }
+        /// <summary>Tổng thời gian đã làm bài, định dạng hh:mm:ss:fff (mili giây). Chỉ có giá trị khi Status = FINISHED.</summary>
+        public string TimeWorkedMsText { get; set; }
         //public List<int> {}
         public ContestantInformation()
 		{

@@ -67,6 +67,15 @@ namespace EXONSYSTEM
         public int NumberOfOvertime = 0; //Số lần bù giờ cho thí sinh
         //Label display time saved writing question
         private Label lblTimeSavedWritingQuestion;
+
+        // Fallback thời gian khi mất kết nối mạng
+        // _serverTimeAtStart: giờ server tại thời điểm bật phần mềm (synced 1 lần)
+        // _stopwatch: đếm thời gian đã trôi qua từ lúc sync
+        private System.Diagnostics.Stopwatch _stopwatch = new System.Diagnostics.Stopwatch();
+        private DateTime _serverTimeAtStart = DateTime.MinValue;
+        // True khi đồng hồ đếm ngược về 0 (hết giờ tự động)
+        // Lúc đó thời gian làm bài = đúng bằng thời gian thi (TimeOfTest)
+        private bool _isTimedOut = false;
         #endregion
         public frmMainForm()
         {
@@ -93,12 +102,28 @@ namespace EXONSYSTEM
 
             Sql = sql;
             CILogged = CI;
+            ExamAnswerHistoryStore.InitializeSession(CILogged.ContestantShiftID, CILogged.IsNewStarted || CILogged.Status == Constant.STATUS_LOGGED);
 
             CLogged = C;
             maxTime = 3600;
             WarningCount = CILogged.Warning;
             currentStatusContestant = CILogged.Status;
             ContestantID = CILogged.ContestantID;
+
+            // Khởi tạo đồng hồ dự phòng: lấy giờ server 1 lần rồi đếm bằng Stopwatch
+            // Nếu mất mạng sau đó, vẫn tính được thời gian chính xác
+            try
+            {
+                _serverTimeAtStart = DAO.DAO.ConvertDateTime.GetDateTimeServer();
+                _stopwatch.Restart();
+            }
+            catch
+            {
+                // Nếu không lấy được giờ server ngay lúc đầu thì dùng giờ local
+                _serverTimeAtStart = DateTime.Now;
+                _stopwatch.Restart();
+            }
+
             // Khởi tạo socket
             UT = new UserHelper.UserTransformation();
             UT.ComputerName = Dns.GetHostName();
@@ -756,6 +781,8 @@ namespace EXONSYSTEM
                         lbTimer.Text = "00:00";
                         this.lbTimer.Update();
 
+                        _isTimedOut = true; // Đánh dấu hết giờ → TimeWorked = TimeOfTest
+
                         flpnListOfQuestions.Visible = false;
                         MetroPanel mpnController = (MetroPanel)pnInformation.Controls["mpnController"];
                         MetroButton mbtnSubmit = (MetroButton)mpnController.Controls["mbtnSubmit"];
@@ -864,6 +891,7 @@ namespace EXONSYSTEM
         }
         MetroButton mbtnPrevious = new MetroButton();
         MetroButton mbtnNext = new MetroButton();
+        MetroButton mbtnViewExamHistory = new MetroButton();
         private void HandleStyleButtonReadTimePause()
         {
 
@@ -880,11 +908,23 @@ namespace EXONSYSTEM
 
             mbtnReadTimePause.Width = Constant.WIDTH_PANEL_INFORMATION;
             pnInformation.Controls.Add(mbtnReadTimePause);
+
+            Controllers.Instance.SetCanChangeMetroButtonColor(mbtnViewExamHistory);
+            mbtnViewExamHistory.Name = "mbtnViewExamHistory";
+            mbtnViewExamHistory.Font = new Font(Constant.FONT_FAMILY_DEFAULT, 16, FontStyle.Bold);
+            mbtnViewExamHistory.ForeColor = Constant.FORCECOLOR_BUTTON_SUBMIT;
+            mbtnViewExamHistory.BackColor = Constant.BACKCOLOR_BUTTON_CONTROLLER;
+            mbtnViewExamHistory.Text = "Xem lịch sử thi";
+            mbtnViewExamHistory.Size = new Size(Constant.WIDTH_PANEL_INFORMATION, 42);
+            mbtnViewExamHistory.Location = new Point(0, mbtnReadTimePause.Bottom + 10);
+            mbtnViewExamHistory.Click += new System.EventHandler(this.mbtnViewExamHistory_Click);
+            mbtnViewExamHistory.Enabled = CanViewExamHistory();
+            pnInformation.Controls.Add(mbtnViewExamHistory);
             //// Phân trang
             Panel pnlBottom = new Panel();
             pnlBottom.Height = 100;
             pnlBottom.Width = Constant.WIDTH_PANEL_INFORMATION;
-            pnlBottom.Location = new Point(0, mbtnReadTimePause.Bottom + 10);
+            pnlBottom.Location = new Point(0, mbtnViewExamHistory.Bottom + 10);
 
             //MetroComboBox cbPage = new MetroComboBox();
             //cbPage.Items.Add(10);
@@ -1088,12 +1128,47 @@ namespace EXONSYSTEM
                 //  s(true);
             }
 
+            // Tính thời gian nộp bài trước khi lưu DB (dùng fallback nếu mất mạng)
+            DateTime submitTime = GetCurrentTimeWithFallback();
+            string endTimeMsText = submitTime.ToString("HH:mm:ss:fff");
+            string timeWorkedMsText = null;
+            try
+            {
+                if (_isTimedOut)
+                {
+                    // Hết giờ tự động → thời gian làm = đúng bằng thời gian thi quy định
+                    TimeSpan totalExam = TimeSpan.FromSeconds(CILogged.TimeOfTest);
+                    timeWorkedMsText = totalExam.ToString(@"hh\:mm\:ss\:fff");
+                }
+                else
+                {
+                    int timeStartUnix = BUS.ContestantBUS.Instance.GetTimeStartFromContestant(CILogged.ContestantShiftID);
+                    if (timeStartUnix > 0)
+                    {
+                        DateTime startTime = Controllers.Instance.ConvertUnixToDateTime(timeStartUnix);
+                        TimeSpan worked = submitTime - startTime - TimeSpan.FromSeconds(ThoiGianBu);
+                        if (worked < TimeSpan.Zero) worked = TimeSpan.Zero;
+                        timeWorkedMsText = worked.ToString(@"hh\:mm\:ss\:fff");
+                    }
+                }
+            }
+            catch { }
+
+            // Luôn ghi log local tại thời điểm click nộp bài (kể cả khi DB lưu thất bại)
+            WriteSubmitLog(rASH.TestScores ?? 0f, sResult, endTimeMsText, timeWorkedMsText, "SUBMIT_CLICK");
+
             AnswersheetBUS.Instance.PushAnswerSheet(rASH, out rEC, Sql);
             if (rEC.ErrorCode == Constant.STATUS_OK)
             {
+                CILogged.EndTimeMsText = endTimeMsText;
+                CILogged.TimeWorkedMsText = timeWorkedMsText;
+
                 ChangeContestantStatusToFinished();
 
-                Controllers.Instance.ShowNotificationFormResult(string.Format(Properties.Resources.MSG_GUI_0051, rASH.TestScores, sResult), this, CILogged.DivisionShiftID, CILogged.ContestantShiftID, Sql);
+                string notifyContent = string.Format(Properties.Resources.MSG_GUI_0051, rASH.TestScores, sResult);
+                if (!string.IsNullOrEmpty(timeWorkedMsText))
+                    notifyContent += string.Format("\nThời gian làm bài: {0}", timeWorkedMsText);
+                Controllers.Instance.ShowNotificationFormResult(notifyContent, this, CILogged.DivisionShiftID, CILogged.ContestantShiftID, Sql);
 
                 this.Controls.Remove(Controls.Owner);
 
@@ -1107,6 +1182,7 @@ namespace EXONSYSTEM
             }
             else
             {
+                // Mất mạng hoặc lỗi DB: log đã ghi ở trên, thông báo cho thí sinh
                 Log.Instance.WriteErrorLog(Properties.Resources.MSG_LOG_FATAL, Controllers.Instance.HandleStringErrorController(rEC));
                 Controllers.Instance.ShowNotificationForm(Constant.TYPE_NOTIFICATION_WARNING, Controllers.Instance.HandleStringErrorController(rEC), this);
                 Controllers.Instance.ExitApplicationFromNotificationForm(this);
@@ -1135,6 +1211,17 @@ namespace EXONSYSTEM
             frmViewTimePause frm = new frmViewTimePause(CILogged.ContestantShiftID);
             frm.Show();
 
+        }
+
+        private void mbtnViewExamHistory_Click(object sender, EventArgs e)
+        {
+            if (!CanViewExamHistory())
+            {
+                return;
+            }
+
+            frmViewExamHistory frm = new frmViewExamHistory(CILogged.ContestantShiftID);
+            frm.Show();
         }
         /// <summary>
         /// Xử lý nút xem lại điểm
@@ -2675,6 +2762,63 @@ namespace EXONSYSTEM
         #endregion
 
         /// <summary>
+        /// Lấy thời gian hiện tại: ưu tiên giờ server, fallback sang Stopwatch + giờ server đã sync lúc bật app.
+        /// Đảm bảo luôn có thời gian kể cả khi mất kết nối mạng.
+        /// </summary>
+        private DateTime GetCurrentTimeWithFallback()
+        {
+            try
+            {
+                return DAO.DAO.ConvertDateTime.GetDateTimeServer();
+            }
+            catch
+            {
+                // Mất kết nối: cộng thời gian đã trôi qua từ lúc sync với server
+                return _serverTimeAtStart + _stopwatch.Elapsed;
+            }
+        }
+
+        /// <summary>
+        /// Ghi log nộp bài ra file local tại C:\ProgramData\EXON\
+        /// Dùng khi mất mạng không lưu được vào CSDL, để làm căn cứ xếp hạng sau.
+        /// Format: key=value, mỗi dòng 1 field.
+        /// </summary>
+        private void WriteSubmitLog(float score, float maxScore, string endTimeMsText, string timeWorkedMsText, string reason)
+        {
+            try
+            {
+                string folder = @"C:\ProgramData\EXON\SubmitLogs";
+                System.IO.Directory.CreateDirectory(folder);
+
+                string fileName = string.Format("{0}_{1}_{2}.submitlog",
+                    CILogged.ContestantCode,
+                    CILogged.ContestantShiftID,
+                    DateTime.Now.ToString("yyyyMMdd_HHmmss_fff"));
+
+                string path = System.IO.Path.Combine(folder, fileName);
+
+                var lines = new System.Text.StringBuilder();
+                lines.AppendLine("ContestantCode=" + (CILogged.ContestantCode ?? ""));
+                lines.AppendLine("ContestantShiftID=" + CILogged.ContestantShiftID);
+                lines.AppendLine("ContestantID=" + CILogged.ContestantID);
+                lines.AppendLine("Score=" + score.ToString("F2"));
+                lines.AppendLine("MaxScore=" + maxScore.ToString("F2"));
+                lines.AppendLine("EndTimeMsText=" + (endTimeMsText ?? ""));
+                lines.AppendLine("TimeWorkedMsText=" + (timeWorkedMsText ?? ""));
+                lines.AppendLine("Reason=" + reason);
+                lines.AppendLine("LoggedAt=" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss:fff"));
+                lines.AppendLine("ComputerName=" + System.Net.Dns.GetHostName());
+
+                System.IO.File.WriteAllText(path, lines.ToString(), System.Text.Encoding.UTF8);
+                Log.Instance.WriteLog(Properties.Resources.MSG_LOG_INFO, "SUBMIT_LOG", "Đã ghi log nộp bài: " + path);
+            }
+            catch (Exception ex)
+            {
+                Log.Instance.WriteErrorLog(Properties.Resources.MSG_LOG_ERROR, "WriteSubmitLog lỗi: " + ex.Message);
+            }
+        }
+
+        /// <summary>
         /// Thay đổi trạng thái thí sinh sang đã hoàn thành bài thi STATUS_FINISHED
         /// </summary>
         private void ChangeContestantStatusToFinished()
@@ -2688,6 +2832,7 @@ namespace EXONSYSTEM
             if (rEC.ErrorCode == Constant.STATUS_OK)
             {
                 Log.Instance.WriteLog(Properties.Resources.MSG_LOG_INFO, "MAIN | CHANGE_STATUS_CONTESTANT | STATUS_FINISHED | ChangeContestantStatusToFinished", Controllers.Instance.HandleStringErrorController(rEC));
+                UpdateExamHistoryButtonState();
 
             }
             else
@@ -2695,6 +2840,19 @@ namespace EXONSYSTEM
                 Log.Instance.WriteErrorLog(Properties.Resources.MSG_LOG_ERROR, Controllers.Instance.HandleStringErrorController(rEC));
                 Controllers.Instance.ShowNotificationForm(Constant.TYPE_NOTIFICATION_WARNING, Controllers.Instance.HandleStringErrorController(rEC), this);
                 Controllers.Instance.ExitApplicationFromNotificationForm(this);
+            }
+        }
+
+        private bool CanViewExamHistory()
+        {
+            return CILogged != null && CILogged.Status == Constant.STATUS_FINISHED;
+        }
+
+        private void UpdateExamHistoryButtonState()
+        {
+            if (mbtnViewExamHistory != null)
+            {
+                mbtnViewExamHistory.Enabled = CanViewExamHistory();
             }
         }
 
@@ -2757,6 +2915,9 @@ namespace EXONSYSTEM
                     // Đổi trạng thái thí sinh sang trạng thái  STATUS_DOING_BUT_INTERRUPT
                     CILogged.Status = Constant.STATUS_DOING_BUT_INTERRUPT;
                     CILogged.IsDisconnected = true;
+                    // ms fields để null khi gián đoạn (chưa nộp bài)
+                    CILogged.EndTimeMsText = null;
+                    CILogged.TimeWorkedMsText = null;
                     ContestantBUS.Instance.ChangeStatusContestant(CILogged, CLogged, out rEC, Sql);
                     if (rEC.ErrorCode == Constant.STATUS_OK)
                     {
@@ -2773,6 +2934,23 @@ namespace EXONSYSTEM
                 }
                 else
                 {
+                    // Hết giờ (maxTime == 0): tính ms trước khi lưu FINISHED, dùng fallback nếu mất mạng
+                    try
+                    {
+                        DateTime endTimeNow = GetCurrentTimeWithFallback();
+                        CILogged.EndTimeMsText = endTimeNow.ToString("HH:mm:ss:fff");
+
+                        int timeStartUnix = BUS.ContestantBUS.Instance.GetTimeStartFromContestant(CILogged.ContestantShiftID);
+                        if (timeStartUnix > 0)
+                        {
+                            DateTime startTime = Controllers.Instance.ConvertUnixToDateTime(timeStartUnix);
+                            TimeSpan worked = endTimeNow - startTime - TimeSpan.FromSeconds(ThoiGianBu);
+                            if (worked < TimeSpan.Zero) worked = TimeSpan.Zero;
+                            CILogged.TimeWorkedMsText = worked.ToString(@"hh\:mm\:ss\:fff");
+                        }
+                    }
+                    catch { }
+
                     ChangeContestantStatusToFinished();
                 }
             }

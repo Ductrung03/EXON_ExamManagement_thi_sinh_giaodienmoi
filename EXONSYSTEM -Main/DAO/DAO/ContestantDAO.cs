@@ -842,9 +842,15 @@ namespace DAO.DAO
                     //    DB.Entry(CSH).State = EntityState.Modified;
                     //    DB.SaveChanges();
                     //    DB.Entry(CSH).State = EntityState.Modified;
-                    SqlCommand sqlcmd = new SqlCommand("update CONTESTANTS_SHIFTS set Status=@status where ContestantShiftID =@id ;", sql);
+                    SqlCommand sqlcmd = new SqlCommand(
+                        "update CONTESTANTS_SHIFTS set Status=@status, EndTimeMsText=@endTimeMsText, TimeWorkedMsText=@timeWorkedMsText where ContestantShiftID=@id;",
+                        sql);
                     sqlcmd.Parameters.Add("@status", CI.Status);
-                    sqlcmd.Parameters.Add("@ID", CI.ContestantShiftID);
+                    sqlcmd.Parameters.Add("@id", CI.ContestantShiftID);
+                    sqlcmd.Parameters.AddWithValue("@endTimeMsText",
+                        (object)CI.EndTimeMsText ?? DBNull.Value);
+                    sqlcmd.Parameters.AddWithValue("@timeWorkedMsText",
+                        (object)CI.TimeWorkedMsText ?? DBNull.Value);
                     int row = 0;
                     while (row == 0)
                     {

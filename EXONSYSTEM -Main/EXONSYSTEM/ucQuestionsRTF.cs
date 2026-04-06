@@ -37,6 +37,7 @@ namespace EXONSYSTEM
         public bool CheckCombobox = false;
         private SqlConnection Sql;
         private TRichTextBox.AdvanRichTextBox temp;
+        private bool _isRestoringAnswer;
         public ucQuestionsRTF(SqlConnection sql)
         {
             InitializeComponent();
@@ -537,6 +538,7 @@ namespace EXONSYSTEM
 
 
             AD.AnswerContent = mrtfAnswer.Text;
+            ExamAnswerHistoryStore.AddEntry(q.NO, "Tự luận: " + mrtfAnswer.Text, DateTime.Now);
 
             AD.LastTime = Controllers.Instance.ConvertDateTimeToUnix(DAO.DAO.ConvertDateTime.GetDateTimeServer());
             ErrorController rEC = new ErrorController();
@@ -577,6 +579,7 @@ namespace EXONSYSTEM
 
 
             AD.AnswerContent = mrtfAnswer.Rtf;
+            ExamAnswerHistoryStore.AddEntry(q.NO, "Tự luận: " + mrtfAnswer.Text, DateTime.Now);
 
             AD.LastTime = Controllers.Instance.ConvertDateTimeToUnix(DAO.DAO.ConvertDateTime.GetDateTimeServer());
             ErrorController rEC = new ErrorController();
@@ -681,8 +684,13 @@ namespace EXONSYSTEM
             mbtnControl.Update();
             ErrorController rEC = new ErrorController();
             MetroComboBox mcbAnswer = (sender) as MetroComboBox;
+            if (mcbAnswer == null || mcbAnswer.SelectedValue == null || _isRestoringAnswer)
+            {
+                return;
+            }
             AD.ChoosenAnswer = int.Parse(mcbAnswer.SelectedValue.ToString());
             //AD.AnswerContent = mcbAnswer.Text;
+            ExamAnswerHistoryStore.AddEntry(q.NO, "Ghép nối: " + mcbAnswer.Text, DateTime.Now);
             AD.LastTime = Controllers.Instance.ConvertDateTimeToUnix(DAO.DAO.ConvertDateTime.GetDateTimeServer());
             //TrangThaiThayDoi = true;
             AnswersheetDetailBUS.Instance.PushAnswerSheetDetail(AD, out rEC,Sql);
@@ -758,28 +766,42 @@ namespace EXONSYSTEM
             {
                 ErrorController rEC = new ErrorController();
                 RadioButton mrb = sender as RadioButton;
+                if (mrb == null || !mrb.Checked)
+                {
+                    return;
+                }
+
+                string selectedAnswerText = string.Empty;
                 switch (mrb.Name)
                 {
                     case "mrbAnswerA":
                         AD.ChoosenAnswer = q.ListAnswer[0].AnswerID;
                         StyleLabel(mrbAnswerA);
                         mbtnControl.Text = string.Format(Properties.Resources.MSG_GUI_0021, q.NO, Properties.Resources.MSG_GUI_0022);
+                        selectedAnswerText = BuildAnswerHistoryText(Properties.Resources.MSG_GUI_0022, q.ListAnswer[0].AnswerContent);
                         break;
                     case "mrbAnswerB":
                         AD.ChoosenAnswer = q.ListAnswer[1].AnswerID;
                         StyleLabel(mrbAnswerB);
                         mbtnControl.Text = string.Format(Properties.Resources.MSG_GUI_0021, q.NO, Properties.Resources.MSG_GUI_0023);
+                        selectedAnswerText = BuildAnswerHistoryText(Properties.Resources.MSG_GUI_0023, q.ListAnswer[1].AnswerContent);
                         break;
                     case "mrbAnswerC":
                         AD.ChoosenAnswer = q.ListAnswer[2].AnswerID;
                         StyleLabel(mrbAnswerC);
                         mbtnControl.Text = string.Format(Properties.Resources.MSG_GUI_0021, q.NO, Properties.Resources.MSG_GUI_0024);
+                        selectedAnswerText = BuildAnswerHistoryText(Properties.Resources.MSG_GUI_0024, q.ListAnswer[2].AnswerContent);
                         break;
                     case "mrbAnswerD":
                         AD.ChoosenAnswer = q.ListAnswer[3].AnswerID;
                         StyleLabel(mrbAnswerD);
                         mbtnControl.Text = string.Format(Properties.Resources.MSG_GUI_0021, q.NO, Properties.Resources.MSG_GUI_0025);
+                        selectedAnswerText = BuildAnswerHistoryText(Properties.Resources.MSG_GUI_0025, q.ListAnswer[3].AnswerContent);
                         break;
+                }
+                if (!_isRestoringAnswer)
+                {
+                    ExamAnswerHistoryStore.AddEntry(q.NO, selectedAnswerText, DateTime.Now);
                 }
                 AD.LastTime = Controllers.Instance.ConvertDateTimeToUnix(DAO.DAO.ConvertDateTime.GetDateTimeServer());
                 AnswersheetDetailBUS.Instance.PushAnswerSheetDetail(AD, out rEC,Sql);
@@ -825,6 +847,7 @@ namespace EXONSYSTEM
         }
         public void HandleClickRadioAnswer()
         {
+            _isRestoringAnswer = true;
             switch (this.q.AnswerChecked)
             {
                 //ANS_CHECKED_A
@@ -843,6 +866,21 @@ namespace EXONSYSTEM
                 case 2004:
                     mrbAnswerD.PerformClick();
                     break;
+            }
+            _isRestoringAnswer = false;
+        }
+
+        private string BuildAnswerHistoryText(string answerLabel, string answerContent)
+        {
+            RichTextBox richTextBox = new RichTextBox();
+            try
+            {
+                richTextBox.Rtf = answerContent ?? string.Empty;
+                return string.Format("{0}. {1}", answerLabel, richTextBox.Text.Replace("\n", " ").Trim());
+            }
+            catch
+            {
+                return string.Format("{0}. {1}", answerLabel, answerContent ?? string.Empty);
             }
         }
 

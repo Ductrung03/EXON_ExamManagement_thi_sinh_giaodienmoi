@@ -137,6 +137,8 @@
     <Compile Include="Common\Constant.cs" />
     <Compile Include="Common\Controllers.cs" />
     <Compile Include="Common\DTO.cs" />
+    <Compile Include="Common\ExamAnswerHistoryEntry.cs" />
+    <Compile Include="Common\ExamAnswerHistoryStore.cs" />
     <Compile Include="Common\Encryption.cs" />
     <Compile Include="Common\INIHelper.cs" />
     <Compile Include="Common\InternetHelper.cs" />
@@ -226,6 +228,12 @@
     </Compile>
     <Compile Include="Layout\frmViewTextControl.designer.cs">
       <DependentUpon>frmViewTextControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Layout\frmViewExamHistory.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Layout\frmViewExamHistory.Designer.cs">
+      <DependentUpon>frmViewExamHistory.cs</DependentUpon>
     </Compile>
     <Compile Include="Layout\frmViewTimePause.cs">
       <SubType>Form</SubType>

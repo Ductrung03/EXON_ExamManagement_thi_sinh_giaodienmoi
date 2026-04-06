@@ -22,6 +22,7 @@ namespace EXONSYSTEM
         public Control mbtnControl { get; set; }
         public Questions q;
         private AnswersheetDetail AD;
+        private bool _isRestoringAnswer;
         public ucQuestionsHTML()
         {
             InitializeComponent();
@@ -103,31 +104,45 @@ namespace EXONSYSTEM
         {
             ErrorController rEC = new ErrorController();
             RadioButton mrb = sender as RadioButton;
+            if (mrb == null || !mrb.Checked)
+            {
+                return;
+            }
+
+            string selectedAnswerText = string.Empty;
             switch (mrb.Name)
             {
                 case "mrbAnswerA":
                     AD.ChoosenAnswer = q.ListAnswer[0].AnswerID;
                     StyleLabel(mrbAnswerA);
                     mbtnControl.Text = string.Format(Properties.Resources.MSG_GUI_0021, q.NO, Properties.Resources.MSG_GUI_0022);
+                    selectedAnswerText = BuildAnswerHistoryText(Properties.Resources.MSG_GUI_0022, q.ListAnswer[0].AnswerContent);
                     break;
                 case "mrbAnswerB":
                     AD.ChoosenAnswer = q.ListAnswer[1].AnswerID;
                     StyleLabel(mrbAnswerB);
                     mbtnControl.Text = string.Format(Properties.Resources.MSG_GUI_0021, q.NO, Properties.Resources.MSG_GUI_0023);
+                    selectedAnswerText = BuildAnswerHistoryText(Properties.Resources.MSG_GUI_0023, q.ListAnswer[1].AnswerContent);
                     break;
                 case "mrbAnswerC":
                     AD.ChoosenAnswer = q.ListAnswer[2].AnswerID;
                     StyleLabel(mrbAnswerC);
                     mbtnControl.Text = string.Format(Properties.Resources.MSG_GUI_0021, q.NO, Properties.Resources.MSG_GUI_0024);
+                    selectedAnswerText = BuildAnswerHistoryText(Properties.Resources.MSG_GUI_0024, q.ListAnswer[2].AnswerContent);
                     break;
                 case "mrbAnswerD":
                     AD.ChoosenAnswer = q.ListAnswer[3].AnswerID;
                     StyleLabel(mrbAnswerD);
                     mbtnControl.Text = string.Format(Properties.Resources.MSG_GUI_0021, q.NO, Properties.Resources.MSG_GUI_0025);
+                    selectedAnswerText = BuildAnswerHistoryText(Properties.Resources.MSG_GUI_0025, q.ListAnswer[3].AnswerContent);
                     break;
             }
             AD.LastTime = Controllers.Instance.ConvertDateTimeToUnix(DateTime.Now);
-           // AnswersheetDetailBUS.Instance.PushAnswerSheetDetail(AD, out rEC);
+            if (!_isRestoringAnswer)
+            {
+                ExamAnswerHistoryStore.AddEntry(q.NO, selectedAnswerText, DateTime.Now);
+            }
+            // AnswersheetDetailBUS.Instance.PushAnswerSheetDetail(AD, out rEC);
             if (rEC.ErrorCode == Constant.STATUS_OK)
             {
                 mbtnControl.BackColor = Constant.BACKCOLOR_BUTTON_QUESTION;
@@ -162,6 +177,7 @@ namespace EXONSYSTEM
         }
         public void HandleClickMrbtnAnswer()
         {
+            _isRestoringAnswer = true;
             switch (this.q.AnswerChecked)
             {
                 //ANS_CHECKED_A
@@ -181,6 +197,15 @@ namespace EXONSYSTEM
                     mrbAnswerD.PerformClick();
                     break;
             }
+            _isRestoringAnswer = false;
+        }
+
+        private string BuildAnswerHistoryText(string answerLabel, string answerContent)
+        {
+            HtmlLabel htmlLabel = new HtmlLabel();
+            htmlLabel.Text = answerContent ?? string.Empty;
+            string plainText = htmlLabel.Text;
+            return string.Format("{0}. {1}", answerLabel, plainText);
         }
     }
 }
