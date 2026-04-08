@@ -382,6 +382,10 @@
     </None>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\EXON.Common\EXON.Common.csproj">
+      <Project>{df92320d-cd11-499b-8002-ff00b40f101a}</Project>
+      <Name>EXON.Common</Name>
+    </ProjectReference>
     <ProjectReference Include="..\..\UserHelper\UserHelper.csproj">
       <Project>{ea20b7c6-23b7-4415-9e09-fa254fb4a5a4}</Project>
       <Name>UserHelper</Name>
@@ -421,6 +425,10 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="EXON.ico" />
+    <Content Include="..\..\EXON.Common\bin\$(Configuration)\EXON.Common.dll">
+      <Link>EXON.Common.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="..\..\EXON.ForRegister\txkernel.dll">
       <Link>txkernel.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
