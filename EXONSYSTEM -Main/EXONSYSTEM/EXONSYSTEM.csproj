@@ -421,6 +421,10 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="EXON.ico" />
+    <Content Include="..\..\EXON.ForRegister\txkernel.dll">
+      <Link>txkernel.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="Resources\EXON.ico" />
     <None Include="Resources\PLAY_MEDIA.png" />
     <None Include="Resources\STOP_MEDIA.png" />

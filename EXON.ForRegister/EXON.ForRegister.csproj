@@ -170,7 +170,9 @@
     <None Include="Resources\vaothi.png" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="txkernel.dll" />
+    <Content Include="txkernel.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="TXTextControl.dll">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
