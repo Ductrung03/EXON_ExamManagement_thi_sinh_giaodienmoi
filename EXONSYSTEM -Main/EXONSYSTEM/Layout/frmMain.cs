@@ -78,6 +78,7 @@ namespace EXONSYSTEM
         private bool _isTimedOut = false;
         private string _currentSessionFolder;
         private string _currentSegmentGuid;
+        private bool _hasShownServerDisconnectMessage;
         #endregion
         public frmMainForm()
         {
@@ -118,12 +119,13 @@ namespace EXONSYSTEM
             {
                 _serverTimeAtStart = DAO.DAO.ConvertDateTime.GetDateTimeServer();
                 _stopwatch.Restart();
+                
             }
             catch
             {
-                // Nếu không lấy được giờ server ngay lúc đầu thì dùng giờ local
                 _serverTimeAtStart = DateTime.Now;
                 _stopwatch.Restart();
+                ShowRuntimeServerMessage("Mất kết nối server. Phần mềm sẽ dùng thời gian dự phòng, vui lòng liên hệ giám thị nếu sự cố kéo dài.");
             }
 
             AnswerSelectionLogger.Init(_serverTimeAtStart);
@@ -348,7 +350,7 @@ namespace EXONSYSTEM
             ULCD.ContestShift = string.Format("{0} - {1}", Controllers.Instance.ConvertUnixToDateTime(CLogged.StartTime).ToString(Constant.FORMAT_TIME_DEFAULT), Controllers.Instance.ConvertUnixToDateTime(CLogged.EndTime).ToString(Constant.FORMAT_TIME_DEFAULT));
             ULCD.ContestSubject = CILogged.SubjectName;
             ULCD.RoomTest = CLogged.RoomName;
-            ULCD.TimeChange = Controllers.Instance.ConvertDateTimeToUnix(DAO.DAO.ConvertDateTime.GetDateTimeServer());
+            ULCD.TimeChange = Controllers.Instance.ConvertDateTimeToUnix(GetCurrentTimeWithFallback());
             ULCD.JsonDescription = Ultis.FromObjectToJSON3(ULCD);
 
             ContestantBUS.Instance.ChangeContestantCode(ULCD, CILogged, Sql);
@@ -469,9 +471,9 @@ namespace EXONSYSTEM
             }
             else if (status == -1)
             {
-                Controllers.Instance.ShowNotificationForm(Constant.TYPE_NOTIFICATION_WARNING, "Thông báo lỗi đến giám thị", this);
                 Log.Instance.WriteErrorLog(Properties.Resources.MSG_LOG_ERROR, "Có lỗi lúc timer chờ lệnh phát đề giám sát");
-                Controllers.Instance.ExitApplicationFromNotificationForm(this);
+                timerReadyToLoadTest.Stop();
+                ShowRuntimeServerMessage("Mất kết nối server, vui lòng thử lại hoặc liên hệ giám thị.");
             }
         }
 
@@ -490,41 +492,48 @@ namespace EXONSYSTEM
             }
             else if (status == -1)
             {
-                Controllers.Instance.ShowNotificationForm(Constant.TYPE_NOTIFICATION_WARNING, "Thông báo lỗi đến giám thị", this);
                 Log.Instance.WriteErrorLog(Properties.Resources.MSG_LOG_FATAL, "Có lỗi lúc timer chờ lệnh phát đề giám sát");
-                Controllers.Instance.ExitApplicationFromNotificationForm(this);
+                timerReadyToTest.Stop();
+                ShowRuntimeServerMessage("Mất kết nối server, vui lòng thử lại hoặc liên hệ giám thị.");
             }
         }
 
         private void TimerSubmit_Tick(object sender, EventArgs e)
         {
-            HandlePushAnswerSheet();
-            int TimeNow = Controllers.Instance.ConvertDateTimeToUnix(DAO.DAO.ConvertDateTime.GetDateTimeServer());
-            BUS.ContestantBUS.Instance.UpdateLastimeConnect(CILogged.ContestantShiftID, TimeNow, Sql);
-
-            //Nếu thực hiện bù giờ cho thí sinh:
-            if (NumberOfOvertime != BUS.ContestantBUS.Instance.GetNumberOfOvertime(CILogged, Sql))
+            try
             {
+                HandlePushAnswerSheet();
+                int TimeNow = Controllers.Instance.ConvertDateTimeToUnix(DAO.DAO.ConvertDateTime.GetDateTimeServer());
+                BUS.ContestantBUS.Instance.UpdateLastimeConnect(CILogged.ContestantShiftID, TimeNow, Sql);
 
-                ThoiGianBu = BUS.ContestantBUS.Instance.GetThoiGianBu(CILogged.ContestantShiftID);
-                NumberOfOvertime += 1; //Phải tăng lên 1 nếu ko nó sẽ tự động bù giờ liên tục
-                //Panel pnTimerMask = (Panel)pnInformation.Controls["pnTimerMask"];
-                int TimeStart = BUS.ContestantBUS.Instance.GetTimeStartFromContestant(CILogged.ContestantShiftID);
-                TimeNow = Controllers.Instance.ConvertDateTimeToUnix(DAO.DAO.ConvertDateTime.GetDateTimeServer());
-                //   this.maxTime = currentStatusContestant == Constant.STATUS_LOGGED_DO_NOT_FINISH ? CILogged.TimeRemained : CILogged.TimeOfTest;
+                //Nếu thực hiện bù giờ cho thí sinh:
+                if (NumberOfOvertime != BUS.ContestantBUS.Instance.GetNumberOfOvertime(CILogged, Sql))
+                {
 
-                /// 1p Lấy thời gian bài làm từ server một lần
-                //timerGetMaxTime = new Timer();
-                //timerGetMaxTime.Interval = 62122;
-                //timerGetMaxTime.Interval = 100;
-                //timerGetMaxTime.Start();
-                //timerGetMaxTime.Tick += TimerGetMaxTime_Tick;
-                this.maxTime = CILogged.TimeOfTest - (TimeNow - TimeStart) + ThoiGianBu;
-                //pnTimerMask.Visible = false;
-                //lbTimer.ForeColor = Constant.FORCECOLOR_LABEL_TIMER;
-                //lbTimer.Text = Controllers.Instance.HandleCountDown(maxTime);
-                lbTimer.Text = Controllers.Instance.HandleCountDown(maxTime);
-                lbTimer.Update();
+                    ThoiGianBu = BUS.ContestantBUS.Instance.GetThoiGianBu(CILogged.ContestantShiftID);
+                    NumberOfOvertime += 1; //Phải tăng lên 1 nếu ko nó sẽ tự động bù giờ liên tục
+                                           //Panel pnTimerMask = (Panel)pnInformation.Controls["pnTimerMask"];
+                    int TimeStart = BUS.ContestantBUS.Instance.GetTimeStartFromContestant(CILogged.ContestantShiftID);
+                    TimeNow = Controllers.Instance.ConvertDateTimeToUnix(DAO.DAO.ConvertDateTime.GetDateTimeServer());
+                    //   this.maxTime = currentStatusContestant == Constant.STATUS_LOGGED_DO_NOT_FINISH ? CILogged.TimeRemained : CILogged.TimeOfTest;
+
+                    /// 1p Lấy thời gian bài làm từ server một lần
+                    //timerGetMaxTime = new Timer();
+                    //timerGetMaxTime.Interval = 62122;
+                    //timerGetMaxTime.Interval = 100;
+                    //timerGetMaxTime.Start();
+                    //timerGetMaxTime.Tick += TimerGetMaxTime_Tick;
+                    this.maxTime = CILogged.TimeOfTest - (TimeNow - TimeStart) + ThoiGianBu;
+                    //pnTimerMask.Visible = false;
+                    //lbTimer.ForeColor = Constant.FORCECOLOR_LABEL_TIMER;
+                    //lbTimer.Text = Controllers.Instance.HandleCountDown(maxTime);
+                    lbTimer.Text = Controllers.Instance.HandleCountDown(maxTime);
+                    lbTimer.Update();
+                }
+            }
+            catch
+            {
+                HandleRuntimeServerDisconnect();
             }
         }
 
@@ -783,8 +792,7 @@ namespace EXONSYSTEM
             }
             catch
             {
-                // truong hop lay khong duoc thoi gian thi k xet gi ca 
-                // co the them thoat form xemxet
+                HandleRuntimeServerDisconnect();
             }
         }
 
@@ -1162,7 +1170,7 @@ namespace EXONSYSTEM
 
                 rASH.Status = Constant.STATUS_FINISHED;
 
-                File.SetAttributes(frmAuthentication.logFile, FileAttributes.ReadOnly);
+                SafeSetAuthenticationLogFileAttributes(FileAttributes.ReadOnly);
                 //  s(true);
             }
 
@@ -1217,7 +1225,7 @@ namespace EXONSYSTEM
 
                 string notifyContent = string.Format(Properties.Resources.MSG_GUI_0051, rASH.TestScores, sResult);
                 if (!string.IsNullOrEmpty(timeWorkedMsText))
-                    notifyContent += string.Format("\nThời gian làm bài: {0}", timeWorkedMsText);
+                    notifyContent += string.Format("\nThời gian làm bài: {0}. Thời điểm nộp bài: {1}", timeWorkedMsText, submitTimeText);
                 UploadCurrentExamLogsToServer();
                 Controllers.Instance.ShowNotificationFormResult(notifyContent, this, CILogged.DivisionShiftID, CILogged.ContestantShiftID, Sql);
 
@@ -1654,8 +1662,8 @@ namespace EXONSYSTEM
             else
             {
                 Log.Instance.WriteErrorLog(Properties.Resources.MSG_LOG_ERROR, Controllers.Instance.HandleStringErrorController(rEC));
-                Controllers.Instance.ShowNotificationForm(Constant.TYPE_NOTIFICATION_WARNING, Controllers.Instance.HandleStringErrorController(rEC), this);
-                Controllers.Instance.ExitApplicationFromNotificationForm(this);
+                ShowRuntimeServerMessage("Mất kết nối server, vui lòng thử lại hoặc liên hệ giám thị.");
+                return;
             }
             CILogged.Status = Constant.STATUS_DOING;
             if (currentStatusContestant == Constant.STATUS_LOGGED)
@@ -1673,8 +1681,8 @@ namespace EXONSYSTEM
             else
             {
                 Log.Instance.WriteErrorLog(Properties.Resources.MSG_LOG_ERROR, Controllers.Instance.HandleStringErrorController(rEC));
-                Controllers.Instance.ShowNotificationForm(Constant.TYPE_NOTIFICATION_WARNING, Controllers.Instance.HandleStringErrorController(rEC), this);
-                Controllers.Instance.ExitApplicationFromNotificationForm(this);
+                ShowRuntimeServerMessage("Mất kết nối server, vui lòng thử lại hoặc liên hệ giám thị.");
+                return;
             }
 
             HandleTimer();
@@ -2257,7 +2265,7 @@ namespace EXONSYSTEM
                                 {
                                     Log.Instance.WriteLog(Properties.Resources.MSG_LOG_INFO, "USER_ANSWER", "Đã trả lời câu hỏi");
 
-                                    lblTimeSavedWritingQuestion.Text = "Bài thi viết được lưu tự động lúc " + DAO.DAO.ConvertDateTime.GetDateTimeServer().ToString();
+                                     lblTimeSavedWritingQuestion.Text = "Bài thi viết được lưu tự động lúc " + GetCurrentTimeWithFallback().ToString("dd/MM/yyyy HH:mm:ss");
 
                                     //Log.Instance.WriteLog(Properties.Resources.MSG_LOG_INFO, "USER_ANSWER", (c as ucQuestionsRTF).AD.AnswerContent);
                                 }
@@ -2864,12 +2872,23 @@ namespace EXONSYSTEM
                     "CSTS_" + CILogged.ContestantShiftID + "_" + _currentSegmentGuid);
             }
 
-            Directory.CreateDirectory(_currentSessionFolder);
+            try
+            {
+                Directory.CreateDirectory(_currentSessionFolder);
+            }
+            catch
+            {
+                _currentSessionFolder = null;
+            }
         }
 
         private void WriteSessionInfoFile()
         {
             EnsureCurrentSessionFolderInitialized();
+            if (string.IsNullOrWhiteSpace(_currentSessionFolder))
+            {
+                return;
+            }
             string path = Path.Combine(_currentSessionFolder, "session.info");
             LocalStateWriter.UpsertKeyValues(path, new Dictionary<string, string>
             {
@@ -2886,6 +2905,10 @@ namespace EXONSYSTEM
         private void WriteRuntimeStateFile()
         {
             EnsureCurrentSessionFolderInitialized();
+            if (string.IsNullOrWhiteSpace(_currentSessionFolder))
+            {
+                return;
+            }
             string path = Path.Combine(_currentSessionFolder, "runtime.state");
             LocalStateWriter.UpsertKeyValues(path, new Dictionary<string, string>
             {
@@ -2907,6 +2930,10 @@ namespace EXONSYSTEM
         private void WriteFinalResultFile()
         {
             EnsureCurrentSessionFolderInitialized();
+            if (string.IsNullOrWhiteSpace(_currentSessionFolder))
+            {
+                return;
+            }
             string path = Path.Combine(_currentSessionFolder, "final.result");
             LocalStateWriter.UpsertKeyValues(path, new Dictionary<string, string>
             {
@@ -2933,8 +2960,18 @@ namespace EXONSYSTEM
             }
 
             EnsureCurrentSessionFolderInitialized();
+            if (string.IsNullOrWhiteSpace(_currentSessionFolder))
+            {
+                return;
+            }
             string targetPath = Path.Combine(_currentSessionFolder, Path.GetFileName(sourcePath));
-            File.Copy(sourcePath, targetPath, true);
+            try
+            {
+                File.Copy(sourcePath, targetPath, true);
+            }
+            catch
+            {
+            }
         }
 
         private string GetConnectionLogPath()
@@ -2951,20 +2988,27 @@ namespace EXONSYSTEM
 
         private string GetLatestSubmitLogPath()
         {
-            string folder = @"C:\ProgramData\EXON\SubmitLogs";
-            if (!Directory.Exists(folder))
+            try
+            {
+                string folder = @"C:\ProgramData\EXON\SubmitLogs";
+                if (!Directory.Exists(folder))
+                {
+                    return null;
+                }
+
+                string pattern = string.Format("{0}_{1}_*.submitlog", CILogged.ContestantCode, CILogged.ContestantShiftID);
+                string[] files = Directory.GetFiles(folder, pattern);
+                if (files.Length == 0)
+                {
+                    return null;
+                }
+
+                return files.OrderByDescending(x => x).FirstOrDefault();
+            }
+            catch
             {
                 return null;
             }
-
-            string pattern = string.Format("{0}_{1}_*.submitlog", CILogged.ContestantCode, CILogged.ContestantShiftID);
-            string[] files = Directory.GetFiles(folder, pattern);
-            if (files.Length == 0)
-            {
-                return null;
-            }
-
-            return files.OrderByDescending(x => x).FirstOrDefault();
         }
 
         private string GetAnswerHistoryPath()
@@ -3100,9 +3144,49 @@ namespace EXONSYSTEM
             else
             {
                 Log.Instance.WriteErrorLog(Properties.Resources.MSG_LOG_ERROR, Controllers.Instance.HandleStringErrorController(rEC));
-                Controllers.Instance.ShowNotificationForm(Constant.TYPE_NOTIFICATION_WARNING, Controllers.Instance.HandleStringErrorController(rEC), this);
-                Controllers.Instance.ExitApplicationFromNotificationForm(this);
+                ShowRuntimeServerMessage("Mất kết nối server, vui lòng thử lại hoặc liên hệ giám thị.");
             }
+        }
+
+        private void SafeSetAuthenticationLogFileAttributes(FileAttributes attributes)
+        {
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(frmAuthentication.logFile) && File.Exists(frmAuthentication.logFile))
+                {
+                    File.SetAttributes(frmAuthentication.logFile, attributes);
+                }
+            }
+            catch
+            {
+            }
+        }
+
+        private void ShowRuntimeServerMessage(string message)
+        {
+            if (_hasShownServerDisconnectMessage)
+            {
+                return;
+            }
+
+            _hasShownServerDisconnectMessage = true;
+            MessageBox.Show(message, Properties.Resources.MSG_MESS_0001, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+
+        private void HandleRuntimeServerDisconnect()
+        {
+            Log.Instance.WriteErrorLog(Properties.Resources.MSG_LOG_ERROR, "MAIN | SERVER_DISCONNECT");
+            if (TimerSubmit != null)
+            {
+                TimerSubmit.Stop();
+            }
+
+            if (timerGetMaxTime != null)
+            {
+                timerGetMaxTime.Stop();
+            }
+
+            ShowRuntimeServerMessage("Mất kết nối server. Bài thi vẫn được giữ trên máy, vui lòng liên hệ giám thị.");
         }
 
         private bool CanViewExamHistory()
@@ -3291,7 +3375,16 @@ namespace EXONSYSTEM
                     dir.Delete(true);
                 }
             }
-            Sql.Close();
+            try
+            {
+                if (Sql != null && Sql.State != ConnectionState.Closed)
+                {
+                    Sql.Close();
+                }
+            }
+            catch
+            {
+            }
             // kill process nghe
             foreach (Process process in Process.GetProcessesByName("WMPLib"))
             {

@@ -18,11 +18,17 @@ namespace EXONSYSTEM.Common
 
 		public static Log Instance
 		{
-           
+
 			get
 			{
-				log4net.GlobalContext.Properties["LogName"] = fileName;
-				log4net.Config.XmlConfigurator.Configure();
+				try
+				{
+					log4net.GlobalContext.Properties["LogName"] = fileName;
+					log4net.Config.XmlConfigurator.Configure();
+				}
+				catch
+				{
+				}
 				if (instance == null)
 				{
 					instance = new Log();
@@ -38,21 +44,27 @@ namespace EXONSYSTEM.Common
 		}
 		public void WriteLog(string type, string function, string message)
 		{
-			log4net.GlobalContext.Properties["function"] = function;
-			switch (type)
+			try
 			{
-				case "INFO":
-					log.Info(message);
-					break;
-				case "ERROR":
-					log.Error(message);
-					break;
-				case "WARN":
-					log.Warn(message);
-					break;
-				case "FATAL":
-					log.Fatal(message);
-					break;
+				log4net.GlobalContext.Properties["function"] = function;
+				switch (type)
+				{
+					case "INFO":
+						log.Info(message);
+						break;
+					case "ERROR":
+						log.Error(message);
+						break;
+					case "WARN":
+						log.Warn(message);
+						break;
+					case "FATAL":
+						log.Fatal(message);
+						break;
+				}
+			}
+			catch
+			{
 			}
 		}
 		public void WriteErrorLog(string type, string message,
@@ -60,21 +72,27 @@ namespace EXONSYSTEM.Common
 						[CallerMemberName] string function = "",
 						[CallerLineNumber] int line = 0)
 		{
-			log4net.GlobalContext.Properties["function"] = string.Format("{0} {1}", Path.GetFileName(fileName), function);
-			switch (type)
+			try
 			{
-				case "INFO":
-					log.Error(string.Format("[{0}]: {1}", line, message));
-					break;
-				case "ERROR":
-					log.Info(string.Format("[{0}]: {1}", line, message));
-					break;
-				case "WARN":
-					log.Warn(string.Format("[{0}]: {1}", line, message));
-					break;
-				case "FATAL":
-					log.Fatal(string.Format("[{0}]: {1}", line, message));
-					break;
+				log4net.GlobalContext.Properties["function"] = string.Format("{0} {1}", Path.GetFileName(fileName), function);
+				switch (type)
+				{
+					case "INFO":
+						log.Error(string.Format("[{0}]: {1}", line, message));
+						break;
+					case "ERROR":
+						log.Info(string.Format("[{0}]: {1}", line, message));
+						break;
+					case "WARN":
+						log.Warn(string.Format("[{0}]: {1}", line, message));
+						break;
+					case "FATAL":
+						log.Fatal(string.Format("[{0}]: {1}", line, message));
+						break;
+				}
+			}
+			catch
+			{
 			}
 		}
 	}
@@ -104,8 +122,14 @@ namespace EXONSYSTEM.Common
 
 			get
 			{
-				log4net.GlobalContext.Properties["LogName"] = fileName;
-				log4net.Config.XmlConfigurator.Configure();
+				try
+				{
+					log4net.GlobalContext.Properties["LogName"] = fileName;
+					log4net.Config.XmlConfigurator.Configure();
+				}
+				catch
+				{
+				}
 				if (instance == null)
 				{
 					instance = new Log();
@@ -123,21 +147,27 @@ namespace EXONSYSTEM.Common
 		}
 		public void WriteLog(string type, string function, string message)
 		{
-			log4net.GlobalContext.Properties["function"] = function;
-			switch (type)
+			try
 			{
-				case "INFO":
-					log.Info(message);
-					break;
-				case "ERROR":
-					log.Error(message);
-					break;
-				case "WARN":
-					log.Warn(message);
-					break;
-				case "FATAL":
-					log.Fatal(message);
-					break;
+				log4net.GlobalContext.Properties["function"] = function;
+				switch (type)
+				{
+					case "INFO":
+						log.Info(message);
+						break;
+					case "ERROR":
+						log.Error(message);
+						break;
+					case "WARN":
+						log.Warn(message);
+						break;
+					case "FATAL":
+						log.Fatal(message);
+						break;
+				}
+			}
+			catch
+			{
 			}
 		}
 
@@ -146,21 +176,27 @@ namespace EXONSYSTEM.Common
 						[CallerMemberName] string function = "",
 						[CallerLineNumber] int line = 0)
 		{
-			log4net.GlobalContext.Properties["function"] = string.Format("{0} {1}", Path.GetFileName(fileName), function);
-			switch (type)
+			try
 			{
-				case "INFO":
-					log.Error(string.Format("[{0}]: {1}", line, message));
-					break;
-				case "ERROR":
-					log.Info(string.Format("[{0}]: {1}", line, message));
-					break;
-				case "WARN":
-					log.Warn(string.Format("[{0}]: {1}", line, message));
-					break;
-				case "FATAL":
-					log.Fatal(string.Format("[{0}]: {1}", line, message));
-					break;
+				log4net.GlobalContext.Properties["function"] = string.Format("{0} {1}", Path.GetFileName(fileName), function);
+				switch (type)
+				{
+					case "INFO":
+						log.Error(string.Format("[{0}]: {1}", line, message));
+						break;
+					case "ERROR":
+						log.Info(string.Format("[{0}]: {1}", line, message));
+						break;
+					case "WARN":
+						log.Warn(string.Format("[{0}]: {1}", line, message));
+						break;
+					case "FATAL":
+						log.Fatal(string.Format("[{0}]: {1}", line, message));
+						break;
+				}
+			}
+			catch
+			{
 			}
 		}
 	}

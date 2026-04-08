@@ -120,8 +120,53 @@ namespace EXONSYSTEM.Layout
         string filename;
         int timeError = 0;
         List<string> logError = new List<string>();
+
+        private void ShowServerErrorAndRestoreLogin()
+        {
+            MetroMessageBox.Show(this, "Lỗi server, vui lòng thử lại hoặc liên hệ giám thị", Properties.Resources.MSG_MESS_0001, MessageBoxButtons.OK, MessageBoxIcon.Error, 100);
+            HandleEnableControl(true);
+            txtUsername.Focus();
+        }
+
+        private void ShowGenericErrorAndRestoreLogin()
+        {
+            MetroMessageBox.Show(this, "Có lỗi xảy ra, vui lòng thử lại hoặc liên hệ giám thị", Properties.Resources.MSG_MESS_0001, MessageBoxButtons.OK, MessageBoxIcon.Error, 100);
+            HandleEnableControl(true);
+            txtUsername.Focus();
+        }
+
+        private void SafeSetLogFileAttributes(FileAttributes attributes)
+        {
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(frmAuthentication.logFile) && File.Exists(frmAuthentication.logFile))
+                {
+                    File.SetAttributes(frmAuthentication.logFile, attributes);
+                }
+            }
+            catch
+            {
+            }
+        }
+
+        private void SafeCloseConnection(SqlConnection sql)
+        {
+            try
+            {
+                if (sql != null && sql.State != ConnectionState.Closed)
+                {
+                    sql.Close();
+                }
+            }
+            catch
+            {
+            }
+        }
+
         private void btnSubmit_Click(object sender, EventArgs e)
         {
+            SqlConnection sql = null;
+            bool keepConnectionForMainForm = false;
             try
             {
                 HandleEnableControl(false);
@@ -141,7 +186,7 @@ namespace EXONSYSTEM.Layout
 
                     ContestantInformation rCI = null;
                     ErrorController rEC = new ErrorController();
-                    SqlConnection sql = new SqlConnection();
+                    sql = new SqlConnection();
                     string connectString = DAO.Common.GetConnectString("EXON_SYSTEM_TESTEntities");
                     sql.ConnectionString = connectString;
                     sql.Open();
@@ -220,6 +265,7 @@ namespace EXONSYSTEM.Layout
 
                                 SendInformationToMainForm sitm = new SendInformationToMainForm(DTO.MainForm.HandleInformationFromAuthenForm);
                                 sitm(rCI, rC, sql);
+                                keepConnectionForMainForm = true;
                                 this.Hide();
                                 DTO.MainForm.Show();
 
@@ -256,6 +302,7 @@ namespace EXONSYSTEM.Layout
 
                                 SendInformationToMainForm sitm = new SendInformationToMainForm(DTO.MainForm.HandleInformationFromAuthenForm);
                                 sitm(rCI, rC, sql);
+                                keepConnectionForMainForm = true;
                                 this.Hide();
                                 DTO.MainForm.Show();
 
@@ -281,10 +328,11 @@ namespace EXONSYSTEM.Layout
                         {
                             // Thí sinh đã sẵn sàng để thi (Load đề thi thành công)
                             Log.Instance.WriteLog(Properties.Resources.MSG_LOG_INFO, "AUTHENTICATION | CHECK_STATUS | Authen | STATUS_DOING||STATUS_LOGGED_DO_NOT_FINISH||STATUS_READY||STATUS_LOGGED", Constant.STR_STATUS_READY);
-                            SendInformationToMainForm sitm = new SendInformationToMainForm(DTO.MainForm.HandleInformationFromAuthenForm);
-                            sitm(rCI, rC, sql);
-                            this.Hide();
-                            DTO.MainForm.Show();
+                                SendInformationToMainForm sitm = new SendInformationToMainForm(DTO.MainForm.HandleInformationFromAuthenForm);
+                                sitm(rCI, rC, sql);
+                                keepConnectionForMainForm = true;
+                                this.Hide();
+                                DTO.MainForm.Show();
 
                         }
 
@@ -433,16 +481,27 @@ namespace EXONSYSTEM.Layout
                     Log.Instance.WriteLog(Properties.Resources.MSG_LOG_INFO, "AUTHENTICATION", Properties.Resources.MSG_MESS_0009);
                 }
             }
+            catch (SqlException ex)
+            {
+                Log.Instance.WriteErrorLog(Properties.Resources.MSG_LOG_ERROR, "AUTHENTICATION | SERVER_ERROR | " + ex.Message);
+                ShowServerErrorAndRestoreLogin();
+            }
+            catch (InvalidOperationException ex)
+            {
+                Log.Instance.WriteErrorLog(Properties.Resources.MSG_LOG_ERROR, "AUTHENTICATION | CONNECTION_ERROR | " + ex.Message);
+                ShowServerErrorAndRestoreLogin();
+            }
             catch (Exception ex)
             {
-                File.SetAttributes(frmAuthentication.logFile, FileAttributes.ReadOnly);
-
-
-                Controllers.Instance.ShowNotificationForm(Constant.TYPE_NOTIFICATION_INFO, "Có lỗi vui lòng kiểm tra", this);
-                if (DTO.NotificationForm.DialogResult == DialogResult.OK)
+                Log.Instance.WriteErrorLog(Properties.Resources.MSG_LOG_ERROR, "AUTHENTICATION | UNHANDLED_ERROR | " + ex.Message);
+                ShowGenericErrorAndRestoreLogin();
+            }
+            finally
+            {
+                if (!keepConnectionForMainForm)
                 {
-                    this.Close();
-                    Application.Exit();
+                    SafeCloseConnection(sql);
+                    SafeSetLogFileAttributes(FileAttributes.Normal);
                 }
             }
 
