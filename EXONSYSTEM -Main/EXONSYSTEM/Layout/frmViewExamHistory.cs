@@ -33,15 +33,13 @@ namespace EXONSYSTEM.Layout
             tlpOverview.RowStyles.Clear();
             tlpOverview.RowCount = 0;
 
-            AddOverviewRow("Mã ca thi (ShiftID)", _contestantInformation != null ? _contestantInformation.ContestantShiftID.ToString() : string.Empty);
-            AddOverviewRow("Trạng thái ca thi", BuildStatusText());
-            AddOverviewRow("Thời điểm bắt đầu", BuildTimeStartedText());
-            AddOverviewRow("Thời điểm nộp bài", BuildSubmitTimeText());
-            AddOverviewRow("Tổng thời gian làm", BuildTimeWorkedText());
-            AddOverviewRow("Trạng thái nộp bài", BuildSubmitStatusText());
-            AddOverviewRow("Nguồn giờ nộp bài", BuildTimeSourceText());
-            AddOverviewRow("Số thao tác chọn đáp án", AnswerSelectionLogger.Logs.Count.ToString());
-            AddOverviewRow("Số sự kiện kết nối", ConnectionLogger.Events.Count.ToString());
+            AddOverviewRow("ContestantShiftID", _contestantInformation != null ? _contestantInformation.ContestantShiftID.ToString() : string.Empty);
+            AddOverviewRow("Trạng thái", BuildStatusText());
+            AddOverviewRow("TimeStarted", BuildTimeStartedText());
+            AddOverviewRow("SubmitTime", BuildSubmitTimeText());
+            AddOverviewRow("TimeWorked", BuildTimeWorkedText());
+            AddOverviewRow("SubmitStatus", BuildSubmitStatusText());
+            AddOverviewRow("TimeSource", BuildTimeSourceText());
         }
 
         private void AddOverviewRow(string title, string value)
@@ -75,52 +73,52 @@ namespace EXONSYSTEM.Layout
                 return string.Empty;
             }
 
-            return string.Format("{0} - {1}", _contestantInformation.Status, GetStatusText(_contestantInformation.Status));
+            return GetStatusText(_contestantInformation.Status);
         }
 
         private string GetStatusText(int status)
         {
             if (status == Constant.STATUS_FINISHED)
             {
-                return "FINISHED";
+                return "Submitted";
             }
 
             if (status == Constant.STATUS_DOING)
             {
-                return "DOING";
+                return "Doing";
             }
 
             if (status == Constant.STATUS_DOING_BUT_INTERRUPT)
             {
-                return "DOING_BUT_INTERRUPT";
+                return "Interrupted";
             }
 
             if (status == Constant.STATUS_LOGGED)
             {
-                return "LOGGED";
+                return "Pending";
             }
 
             if (status == Constant.STATUS_LOGGED_DO_NOT_FINISH)
             {
-                return "LOGGED_DO_NOT_FINISH";
+                return "Pending";
             }
 
             if (status == Constant.STATUS_READY)
             {
-                return "READY";
+                return "Pending";
             }
 
             if (status == Constant.STATUS_READY_TO_GET_TEST)
             {
-                return "READY_TO_GET_TEST";
+                return "Pending";
             }
 
             if (status == Constant.STATUS_INITIALIZE)
             {
-                return "INITIALIZE";
+                return "Pending";
             }
 
-            return "UNKNOWN";
+            return "Pending";
         }
 
         private string BuildTimeStartedText()
@@ -183,16 +181,16 @@ namespace EXONSYSTEM.Layout
 
             if (_contestantInformation.SubmitSuccess)
             {
-                return "✓ Success – Đã lưu lên server";
+                return "Success";
             }
 
             if (_contestantInformation.Status == Constant.STATUS_FINISHED || _contestantInformation.Status == Constant.STATUS_REJECT)
             {
                 // Đã finished nhưng SubmitSuccess = false → lưu DB thất bại
-                return "✗ Failed – Lỗi khi lưu lên server";
+                return "Failed";
             }
 
-            return "Pending – Chưa nộp bài";
+            return "Pending";
         }
 
         private string BuildTimeSourceText()
@@ -220,7 +218,7 @@ namespace EXONSYSTEM.Layout
             dgvConnection.Rows.Clear();
             foreach (ConnectionEvent entry in ConnectionLogger.Events)
             {
-                dgvConnection.Rows.Add(entry.TimeText, entry.EventType, entry.Detail);
+                dgvConnection.Rows.Add(entry.TimeText, NormalizeConnectionEvent(entry), NormalizeConnectionDetail(entry));
             }
         }
 
@@ -231,32 +229,46 @@ namespace EXONSYSTEM.Layout
             {
                 AnswerSelectionLogEntry log = AnswerSelectionLogger.Logs[i];
                 string action = (i > 0 && AnswerSelectionLogger.Logs[i - 1].QuestionNo == log.QuestionNo) ? "CHANGE" : "SELECT";
-                dgvActions.Rows.Add(log.SelectedAtMsText, "Q" + log.QuestionNo, action, log.AnswerLabel);
+                dgvActions.Rows.Add(ExtractTimeOnly(log.SelectedAtMsText), "Q" + log.QuestionNo, action, log.AnswerLabel);
+            }
+
+            if (dgvActions.Rows.Count == 0)
+            {
+                foreach (string[] entry in ReadActionLogEntries())
+                {
+                    dgvActions.Rows.Add(entry[0], entry[1], entry[2], entry[3]);
+                }
             }
         }
 
         private void RenderAutosaveHistory()
         {
-            // Rebuild cột cho dgvAutosave: hiển thị ConnectionLogger events AUTOSAVE + SUBMIT
             dgvAutosave.Rows.Clear();
-            dgvAutosave.Columns.Clear();
-            dgvAutosave.Columns.Add("colTime", "Thời gian");
-            dgvAutosave.Columns.Add("colType", "Loại");
-            dgvAutosave.Columns.Add("colDetail", "Chi tiết");
-            dgvAutosave.Columns["colTime"].Width = 200;
-            dgvAutosave.Columns["colType"].Width = 100;
-            dgvAutosave.Columns["colDetail"].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+            if (dgvAutosave.Columns.Count >= 9)
+            {
+                dgvAutosave.Columns[0].HeaderText = "Time";
+                dgvAutosave.Columns[1].HeaderText = "Event";
+                dgvAutosave.Columns[2].HeaderText = "Status";
+                dgvAutosave.Columns[0].Visible = true;
+                dgvAutosave.Columns[1].Visible = true;
+                dgvAutosave.Columns[2].Visible = true;
+                dgvAutosave.Columns[0].Width = 180;
+                dgvAutosave.Columns[1].Width = 120;
+                dgvAutosave.Columns[2].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+                for (int i = 3; i < dgvAutosave.Columns.Count; i++)
+                {
+                    dgvAutosave.Columns[i].Visible = false;
+                }
+            }
 
-            // Ưu tiên đọc từ ConnectionLogger (trong bộ nhớ – real-time)
             foreach (ConnectionEvent ev in ConnectionLogger.Events)
             {
                 if (ev.EventType == "SUBMIT" || ev.EventType == "AUTOSAVE")
                 {
-                    dgvAutosave.Rows.Add(ev.TimeText, ev.EventType, ev.Detail);
+                    dgvAutosave.Rows.Add(ExtractTimeOnly(ev.TimeText), ev.EventType, NormalizeSubmitStatus(ev));
                 }
             }
 
-            // Bổ sung từ file .submitlog (trường hợp đọc lại sau khi tắt mở lại)
             if (dgvAutosave.Rows.Count == 0)
             {
                 foreach (string path in GetSubmitLogFiles())
@@ -264,12 +276,162 @@ namespace EXONSYSTEM.Layout
                     Dictionary<string, string> data = ReadKeyValueFile(path);
                     string reason = GetValue(data, "Reason");
                     string loggedAt = GetValue(data, "LoggedAt");
-                    string detail = string.Format("Score={0}/{1} Source={2} Computer={3}",
-                        GetValue(data, "Score"), GetValue(data, "MaxScore"),
-                        GetValue(data, "TimeSource"), GetValue(data, "ComputerName"));
-                    dgvAutosave.Rows.Add(loggedAt, reason, detail);
+                    dgvAutosave.Rows.Add(ExtractTimeOnly(loggedAt), NormalizeSubmitEvent(reason), "SUCCESS");
                 }
             }
+        }
+
+        private string NormalizeConnectionEvent(ConnectionEvent entry)
+        {
+            if (entry == null || string.IsNullOrEmpty(entry.EventType))
+            {
+                return string.Empty;
+            }
+
+            if (entry.EventType == "LOGIN") return "LOGIN";
+            if (entry.EventType == "DISCONNECT") return "DISCONNECT";
+            if (entry.EventType == "RECONNECT") return "RECONNECT";
+            if (entry.EventType == "SUBMIT") return "SUBMIT";
+            return entry.EventType;
+        }
+
+        private string NormalizeConnectionDetail(ConnectionEvent entry)
+        {
+            if (entry == null || string.IsNullOrEmpty(entry.Detail))
+            {
+                return string.Empty;
+            }
+
+            int computerIndex = entry.Detail.IndexOf("Computer=", StringComparison.OrdinalIgnoreCase);
+            if (computerIndex >= 0)
+            {
+                return entry.Detail.Substring(computerIndex).Trim();
+            }
+
+            return string.Empty;
+        }
+
+        private string NormalizeSubmitStatus(ConnectionEvent entry)
+        {
+            if (entry == null)
+            {
+                return string.Empty;
+            }
+
+            if (entry.EventType == "SUBMIT")
+            {
+                return "SUCCESS";
+            }
+
+            if (entry.Detail.IndexOf("FAILED", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return "FAILED";
+            }
+
+            return "SUCCESS";
+        }
+
+        private string NormalizeSubmitEvent(string reason)
+        {
+            if (string.Equals(reason, "SUBMIT_CLICK", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(reason, "TIMEOUT", StringComparison.OrdinalIgnoreCase))
+            {
+                return "SUBMIT";
+            }
+
+            if (string.Equals(reason, "AUTOSAVE", StringComparison.OrdinalIgnoreCase))
+            {
+                return "AUTOSAVE";
+            }
+
+            return string.IsNullOrEmpty(reason) ? "SUBMIT" : reason;
+        }
+
+        private string ExtractTimeOnly(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return string.Empty;
+            }
+
+            DateTime parsed;
+            if (DateTime.TryParse(value, out parsed))
+            {
+                return parsed.ToString("HH:mm:ss.fff");
+            }
+
+            string[] parts = value.Split(' ');
+            if (parts.Length > 1)
+            {
+                string timeText = parts[parts.Length - 1];
+                int lastColon = timeText.LastIndexOf(':');
+                if (lastColon >= 0)
+                {
+                    timeText = timeText.Substring(0, lastColon) + "." + timeText.Substring(lastColon + 1);
+                }
+
+                return timeText;
+            }
+
+            return value;
+        }
+
+        private IEnumerable<string[]> ReadActionLogEntries()
+        {
+            List<string[]> rows = new List<string[]>();
+            string path = GetActionLogPath();
+            if (string.IsNullOrEmpty(path) || !File.Exists(path))
+            {
+                return rows;
+            }
+
+            try
+            {
+                string[] lines = File.ReadAllLines(path);
+                for (int i = 2; i < lines.Length; i++)
+                {
+                    string line = lines[i];
+                    if (string.IsNullOrWhiteSpace(line))
+                    {
+                        continue;
+                    }
+
+                    string trimmed = line.Trim();
+                    if (trimmed.Length < 30)
+                    {
+                        continue;
+                    }
+
+                    string timeText = trimmed.Substring(0, Math.Min(23, trimmed.Length)).Trim();
+                    string remain = trimmed.Length > 23 ? trimmed.Substring(23).Trim() : string.Empty;
+                    string[] parts = remain.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length < 3)
+                    {
+                        continue;
+                    }
+
+                    string question = parts[0];
+                    string action = parts[1];
+                    string answer = string.Join(" ", parts.Skip(2).ToArray());
+                    rows.Add(new string[] { ExtractTimeOnly(timeText), question, action, answer });
+                }
+            }
+            catch
+            {
+            }
+
+            return rows;
+        }
+
+        private string GetActionLogPath()
+        {
+            if (_contestantInformation == null)
+            {
+                return string.Empty;
+            }
+
+            return Path.Combine(@"C:\ProgramData\EXON\Logs",
+                string.Format("{0}_{1}_actions.log", _contestantInformation.ContestantCode, _contestantInformation.ContestantShiftID));
         }
 
         private IEnumerable<string> GetSubmitLogFiles()

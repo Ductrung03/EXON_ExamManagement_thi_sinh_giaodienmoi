@@ -67,7 +67,14 @@ namespace DAO
             /// <summary>
             ///  bonus 2025  
             /// </summary>
-            this.TopicID = row["TopicID"] as Nullable<int> != null ? Convert.ToInt32(row["TopicID"]) : default(Nullable<int>);
+            if (row.Table != null && row.Table.Columns.Contains("TopicID"))
+            {
+                this.TopicID = row["TopicID"] as Nullable<int> != null ? Convert.ToInt32(row["TopicID"]) : default(Nullable<int>);
+            }
+            else
+            {
+                this.TopicID = default(Nullable<int>);
+            }
             //this.TopicID = row["QuestionTypeID"] as Nullable<int> != null ? Convert.ToInt32(row["QuestionTypeID"]) : default(Nullable<int>);
 
         }

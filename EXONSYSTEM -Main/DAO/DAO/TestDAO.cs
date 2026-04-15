@@ -77,21 +77,28 @@ namespace DAO.DAO
 
                     List<PartOfTest> lstPOFT = new List<PartOfTest>();
 
-                    para = new List<SqlParameter>();
-                    para.Add(new SqlParameter("@ScheduleID", CI.ScheduleID));
-                    List<PART> lstpt = Utils.ExcuteObject<PART>("SELECT * FROM PARTS WHERE ScheduleID = @ScheduleID", para, sql).ToList();
-                    //List<PART> lstpt = new List<PART>();
-                    //lstpt = DB.PARTS.Where(x => x.ScheduleID == CI.ScheduleID).ToList();
-
-                    if (lstpt.Count > 0)
+                    try
                     {
-                        foreach (PART pt in lstpt)
+                        para = new List<SqlParameter>();
+                        para.Add(new SqlParameter("@ScheduleID", CI.ScheduleID));
+                        List<PART> lstpt = Utils.ExcuteObject<PART>("SELECT * FROM PARTS WHERE ScheduleID = @ScheduleID", para, sql).ToList();
+                        //List<PART> lstpt = new List<PART>();
+                        //lstpt = DB.PARTS.Where(x => x.ScheduleID == CI.ScheduleID).ToList();
+
+                        if (lstpt.Count > 0)
                         {
-                            lstPOFT.Add(new PartOfTest(pt.Name, pt.OrderOfQuestion.Value));
+                            foreach (PART pt in lstpt)
+                            {
+                                lstPOFT.Add(new PartOfTest(pt.Name, pt.OrderOfQuestion.Value));
+                            }
+                            rlstPartOfTest = lstPOFT;
                         }
-                        rlstPartOfTest = lstPOFT;
+                        else
+                        {
+                            rlstPartOfTest = null;
+                        }
                     }
-                    else
+                    catch
                     {
                         rlstPartOfTest = null;
                     }
@@ -267,10 +274,15 @@ namespace DAO.DAO
                                   join STRUCTURE_DETAIL_BONUS SDB on SD.StructureDetailID = SDB.StructureDetailID
                                   where QUESTIONS.Level = SD.Level";
 
-            List<QuesIDwithBonus> LquesIDwithBonus = Utils.ExcuteObject<QuesIDwithBonus>(queryString, sql).ToList();
-
-
-            return LquesIDwithBonus;
+            try
+            {
+                List<QuesIDwithBonus> LquesIDwithBonus = Utils.ExcuteObject<QuesIDwithBonus>(queryString, sql).ToList();
+                return LquesIDwithBonus;
+            }
+            catch
+            {
+                return new List<QuesIDwithBonus>();
+            }
 
 
         }
@@ -309,10 +321,10 @@ namespace DAO.DAO
                 return LstructDetailWithMaxBonus;
 
             }
-            catch (Exception e)
+            catch
             {
 
-                return null;
+                return new List<StructureDetailIDwithMaxBonus>();
             }
 
 

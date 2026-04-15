@@ -774,6 +774,8 @@ namespace EXONSYSTEM
                     return;
                 }
 
+                ResetAnswerLabelColors();
+
                 string selectedAnswerText = string.Empty;
                 switch (mrb.Name)
                 {
@@ -830,6 +832,14 @@ namespace EXONSYSTEM
                 Controllers.Instance.ExitApplicationFromNotificationForm(DTO.MainForm);
             }
         }
+        private void ResetAnswerLabelColors()
+        {
+            mrbAnswerA.ForeColor = Constant.COLOR_BLACK;
+            mrbAnswerB.ForeColor = Constant.COLOR_BLACK;
+            mrbAnswerC.ForeColor = Constant.COLOR_BLACK;
+            mrbAnswerD.ForeColor = Constant.COLOR_BLACK;
+        }
+
         private void StyleLabel(RadioButton mrb)
         {
             if (mrb.Checked)

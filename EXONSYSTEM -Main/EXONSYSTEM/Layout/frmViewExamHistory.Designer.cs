@@ -144,21 +144,21 @@ namespace EXONSYSTEM.Layout
             // 
             // colConnectionTime
             // 
-            this.colConnectionTime.HeaderText = "Thời gian";
+            this.colConnectionTime.HeaderText = "Time";
             this.colConnectionTime.Name = "colConnectionTime";
             this.colConnectionTime.ReadOnly = true;
             this.colConnectionTime.Width = 200;
             // 
             // colConnectionEvent
             // 
-            this.colConnectionEvent.HeaderText = "Sự kiện";
+            this.colConnectionEvent.HeaderText = "Event";
             this.colConnectionEvent.Name = "colConnectionEvent";
             this.colConnectionEvent.ReadOnly = true;
             this.colConnectionEvent.Width = 110;
             // 
             // colConnectionDetail
             // 
-            this.colConnectionDetail.HeaderText = "Chi tiết";
+            this.colConnectionDetail.HeaderText = "Detail";
             this.colConnectionDetail.Name = "colConnectionDetail";
             this.colConnectionDetail.ReadOnly = true;
             this.colConnectionDetail.AutoSizeMode = System.Windows.Forms.DataGridViewAutoSizeColumnMode.Fill;
@@ -201,28 +201,28 @@ namespace EXONSYSTEM.Layout
             // 
             // colActionTime
             // 
-            this.colActionTime.HeaderText = "Thời gian";
+            this.colActionTime.HeaderText = "Time";
             this.colActionTime.Name = "colActionTime";
             this.colActionTime.ReadOnly = true;
             this.colActionTime.Width = 200;
             // 
             // colQuestion
             // 
-            this.colQuestion.HeaderText = "Câu";
+            this.colQuestion.HeaderText = "Q";
             this.colQuestion.Name = "colQuestion";
             this.colQuestion.ReadOnly = true;
             this.colQuestion.Width = 60;
             // 
             // colAction
             // 
-            this.colAction.HeaderText = "Thao tác";
+            this.colAction.HeaderText = "Action";
             this.colAction.Name = "colAction";
             this.colAction.ReadOnly = true;
             this.colAction.Width = 90;
             // 
             // colAnswer
             // 
-            this.colAnswer.HeaderText = "Đáp án";
+            this.colAnswer.HeaderText = "Answer";
             this.colAnswer.Name = "colAnswer";
             this.colAnswer.ReadOnly = true;
             this.colAnswer.AutoSizeMode = System.Windows.Forms.DataGridViewAutoSizeColumnMode.Fill;
@@ -270,19 +270,19 @@ namespace EXONSYSTEM.Layout
             // 
             // colLoggedAt
             // 
-            this.colLoggedAt.HeaderText = "LoggedAt";
+            this.colLoggedAt.HeaderText = "Time";
             this.colLoggedAt.Name = "colLoggedAt";
             this.colLoggedAt.ReadOnly = true;
             // 
             // colSubmitTime
             // 
-            this.colSubmitTime.HeaderText = "SubmitTime";
+            this.colSubmitTime.HeaderText = "Event";
             this.colSubmitTime.Name = "colSubmitTime";
             this.colSubmitTime.ReadOnly = true;
             // 
             // colWorked
             // 
-            this.colWorked.HeaderText = "TimeWorked";
+            this.colWorked.HeaderText = "Status";
             this.colWorked.Name = "colWorked";
             this.colWorked.ReadOnly = true;
             // 

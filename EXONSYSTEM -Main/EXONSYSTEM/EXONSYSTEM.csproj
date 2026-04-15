@@ -139,12 +139,16 @@
     <Compile Include="Common\ConnectionLogger.cs" />
     <Compile Include="Common\Controllers.cs" />
     <Compile Include="Common\DTO.cs" />
+    <Compile Include="Common\ExamLogUploadModels.cs" />
     <Compile Include="Common\ExamAnswerHistoryEntry.cs" />
     <Compile Include="Common\ExamAnswerHistoryStore.cs" />
     <Compile Include="Common\Encryption.cs" />
     <Compile Include="Common\INIHelper.cs" />
     <Compile Include="Common\InternetHelper.cs" />
+    <Compile Include="Common\KeyValueFileReader.cs" />
+    <Compile Include="Common\LocalStateWriter.cs" />
     <Compile Include="Common\Log.cs" />
+    <Compile Include="Common\SessionLogUploadService.cs" />
     <Compile Include="Common\SQLHelper.cs" />
     <Compile Include="Controls\AdvanRichTextBox.cs">
       <SubType>Component</SubType>

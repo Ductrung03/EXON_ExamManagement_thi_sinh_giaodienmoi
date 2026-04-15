@@ -9,6 +9,14 @@ using System.IO;
 
 namespace EXON.ForRegister
 {
+    public class TXControlInitializationException : Exception
+    {
+        public TXControlInitializationException(string message, Exception innerException)
+            : base(message, innerException)
+        {
+        }
+    }
+
     static class Program
     {
         static Mutex m;
@@ -30,9 +38,15 @@ namespace EXON.ForRegister
                     {
                         Application.Run(new FormMain());
                     }
-                    catch(Exception e)
+                    catch (TXControlInitializationException)
                     {
                         MessageBox.Show("Máy chưa cài TX Control, vui lòng cài TX Control để tiếp tục sử dụng!");
+                    }
+                    catch (Exception e)
+                    {
+                        MessageBox.Show(string.IsNullOrWhiteSpace(e.Message)
+                            ? "Chương trình gặp sự cố thoát chương trình và liên vệ với quản trị viên "
+                            : e.Message);
                     }
                 }
                 else

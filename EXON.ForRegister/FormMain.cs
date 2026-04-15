@@ -31,9 +31,9 @@ namespace EXON.ForRegister
             {
                 TXTextControl.TextControl textControlTest = new TXTextControl.TextControl();
             }
-            catch(Exception e)
+            catch (Exception ex)
             {
-                MessageBox.Show("Máy chưa cài TX Control, vui lòng cài TX Control!");
+                throw new TXControlInitializationException("Máy chưa cài TX Control, vui lòng cài TX Control!", ex);
             }
 
         }

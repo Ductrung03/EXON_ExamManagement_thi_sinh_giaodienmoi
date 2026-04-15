@@ -76,6 +76,8 @@ namespace EXONSYSTEM
         // True khi đồng hồ đếm ngược về 0 (hết giờ tự động)
         // Lúc đó thời gian làm bài = đúng bằng thời gian thi (TimeOfTest)
         private bool _isTimedOut = false;
+        private string _currentSessionFolder;
+        private string _currentSegmentGuid;
         #endregion
         public frmMainForm()
         {
@@ -135,6 +137,9 @@ namespace EXONSYSTEM
             ConnectionLogger.Log(
                 isReconnect ? "RECONNECT" : "LOGIN",
                 string.Format("ContestantCode={0} ShiftID={1} Computer={2}", CI.ContestantCode, CI.ContestantShiftID, System.Net.Dns.GetHostName()));
+            EnsureCurrentSessionFolderInitialized();
+            WriteSessionInfoFile();
+            WriteRuntimeStateFile();
 
             // Khởi tạo socket
             UT = new UserHelper.UserTransformation();
@@ -325,8 +330,16 @@ namespace EXONSYSTEM
         }
         private void mbtnConfirm_Click(object sender, EventArgs e)
         {
-
-             File.SetAttributes(frmAuthentication.logFile, FileAttributes.Normal);
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(frmAuthentication.logFile) && File.Exists(frmAuthentication.logFile))
+                {
+                    File.SetAttributes(frmAuthentication.logFile, FileAttributes.Normal);
+                }
+            }
+            catch
+            {
+            }
 
             //Lấy thông tin cho vào chuỗi Json
             UserLoginComputerDifferent ULCD = new UserLoginComputerDifferent();
@@ -576,6 +589,14 @@ namespace EXONSYSTEM
                         Controllers.Instance.ShowNotificationForm(Constant.TYPE_NOTIFICATION_WARNING, Controllers.Instance.HandleStringErrorController(rEC), this);
                         Controllers.Instance.ExitApplicationFromNotificationForm(this);
                     }
+                }
+                else
+                {
+                    Log.Instance.WriteErrorLog(Properties.Resources.MSG_LOG_FATAL, Controllers.Instance.HandleStringErrorController(rEC));
+                    Controllers.Instance.ShowNotificationForm(Constant.TYPE_NOTIFICATION_WARNING, Controllers.Instance.HandleStringErrorController(rEC), this);
+                    Controllers.Instance.ExitApplicationFromNotificationForm(this);
+                    this.Cursor = Cursors.Arrow;
+                    return;
                 }
             }
             else if (currentStatusContestant == Constant.STATUS_LOGGED_DO_NOT_FINISH)
@@ -1099,23 +1120,25 @@ namespace EXONSYSTEM
                 //tinh bonus
                 List<QuesIDwithBonus> LquesIDwithBonus = TestBUS.Instance.GetListQuestionWithBonusScore(Sql);
 
-                foreach (var pair in numOfcorrectSubQues)
+                if (LquesIDwithBonus != null && LquesIDwithBonus.Count > 0)
                 {
-
-                    /// tim trong CTDL BONUS doan from, to ma co questionID = pair.Key va from<=pair.Value<to => testcore+=bonus
-                    foreach (var quesIDwithBonus in LquesIDwithBonus)
+                    foreach (var pair in numOfcorrectSubQues)
                     {
 
-                        if (pair.Key == quesIDwithBonus.QuestionID && quesIDwithBonus.From <= pair.Value && pair.Value <= quesIDwithBonus.To)
+                        /// tim trong CTDL BONUS doan from, to ma co questionID = pair.Key va from<=pair.Value<to => testcore+=bonus
+                        foreach (var quesIDwithBonus in LquesIDwithBonus)
                         {
 
-                            //rASH.TestScores +=  float.Parse(quesIDwithBonus.Bonus.ToString());
+                            if (pair.Key == quesIDwithBonus.QuestionID && quesIDwithBonus.From <= pair.Value && pair.Value <= quesIDwithBonus.To)
+                            {
 
-                            rASH.TestScores += (float)quesIDwithBonus.Bonus;
+                                //rASH.TestScores +=  float.Parse(quesIDwithBonus.Bonus.ToString());
 
-                            break;
+                                rASH.TestScores += (float)quesIDwithBonus.Bonus;
+
+                                break;
+                            }
                         }
-
                     }
                 }
                 //tinh maxbonus
@@ -1125,11 +1148,14 @@ namespace EXONSYSTEM
                     int ScheduleID = this.CILogged.ScheduleID;
                     List<StructureDetailIDwithMaxBonus> LstructureDetailIDwithMaxBonus = TestBUS.Instance.GetListMaxBonusWithStructureID(ScheduleID, Sql);
 
-                    foreach (var structureDetailIDwithMaxBonus in LstructureDetailIDwithMaxBonus)
+                    if (LstructureDetailIDwithMaxBonus != null && LstructureDetailIDwithMaxBonus.Count > 0)
                     {
+                        foreach (var structureDetailIDwithMaxBonus in LstructureDetailIDwithMaxBonus)
+                        {
 
-                        sResult += (float)structureDetailIDwithMaxBonus.maxBonus * (int)structureDetailIDwithMaxBonus.NumOfQuestionInTest;
+                            sResult += (float)structureDetailIDwithMaxBonus.maxBonus * (int)structureDetailIDwithMaxBonus.NumOfQuestionInTest;
 
+                        }
                     }
 
                 }
@@ -1192,6 +1218,7 @@ namespace EXONSYSTEM
                 string notifyContent = string.Format(Properties.Resources.MSG_GUI_0051, rASH.TestScores, sResult);
                 if (!string.IsNullOrEmpty(timeWorkedMsText))
                     notifyContent += string.Format("\nThời gian làm bài: {0}", timeWorkedMsText);
+                UploadCurrentExamLogsToServer();
                 Controllers.Instance.ShowNotificationFormResult(notifyContent, this, CILogged.DivisionShiftID, CILogged.ContestantShiftID, Sql);
 
                 this.Controls.Remove(Controls.Owner);
@@ -1668,6 +1695,12 @@ namespace EXONSYSTEM
 
             this.Cursor = Cursors.WaitCursor;
             HandleGetTestInformation();
+            if (lstLQuestion == null || lstLQuestion.Count == 0)
+            {
+                this.Cursor = Cursors.Arrow;
+                Controllers.Instance.ShowNotificationForm(Constant.TYPE_NOTIFICATION_WARNING, "Không tải được đề thi hoặc danh sách câu hỏi đang rỗng.", this);
+                return;
+            }
             Log.Instance.WriteLog(Properties.Resources.MSG_LOG_INFO, "MAIN | GENERATION_OBJ_CONTROL | GernerateObjControl | HandleGetTestInformation", Properties.Resources.MSG_MESS_0008);
             // Debug.WriteLine(IsContinute);
             DTO.LoadingForm = new frmLoading();
@@ -2814,6 +2847,194 @@ namespace EXONSYSTEM
             {
                 source = "LOCAL";
                 return _serverTimeAtStart + _stopwatch.Elapsed;
+            }
+        }
+
+        private void EnsureCurrentSessionFolderInitialized()
+        {
+            if (string.IsNullOrWhiteSpace(_currentSegmentGuid))
+            {
+                _currentSegmentGuid = Guid.NewGuid().ToString();
+            }
+
+            if (string.IsNullOrWhiteSpace(_currentSessionFolder))
+            {
+                _currentSessionFolder = Path.Combine(
+                    @"C:\ProgramData\EXON\ExamCache\active",
+                    "CSTS_" + CILogged.ContestantShiftID + "_" + _currentSegmentGuid);
+            }
+
+            Directory.CreateDirectory(_currentSessionFolder);
+        }
+
+        private void WriteSessionInfoFile()
+        {
+            EnsureCurrentSessionFolderInitialized();
+            string path = Path.Combine(_currentSessionFolder, "session.info");
+            LocalStateWriter.UpsertKeyValues(path, new Dictionary<string, string>
+            {
+                { "SegmentGuid", _currentSegmentGuid },
+                { "ContestantShiftId", CILogged.ContestantShiftID.ToString() },
+                { "ContestantId", CILogged.ContestantID.ToString() },
+                { "DivisionShiftId", CILogged.DivisionShiftID.ToString() },
+                { "AnswerSheetId", CILogged.AnswerSheetID.ToString() },
+                { "ContestantCode", CILogged.ContestantCode },
+                { "ComputerName", Environment.MachineName }
+            });
+        }
+
+        private void WriteRuntimeStateFile()
+        {
+            EnsureCurrentSessionFolderInitialized();
+            string path = Path.Combine(_currentSessionFolder, "runtime.state");
+            LocalStateWriter.UpsertKeyValues(path, new Dictionary<string, string>
+            {
+                { "ContestantShiftId", CILogged.ContestantShiftID.ToString() },
+                { "ContestantId", CILogged.ContestantID.ToString() },
+                { "DivisionShiftId", CILogged.DivisionShiftID.ToString() },
+                { "AnswerSheetId", CILogged.AnswerSheetID.ToString() },
+                { "Status", CILogged.Status.ToString() },
+                { "SubmitTimeUnixMs", CILogged.SubmitTimeUnixMs > 0 ? CILogged.SubmitTimeUnixMs.ToString() : string.Empty },
+                { "SubmitTimeText", CILogged.SubmitTimeText },
+                { "TimeWorkedMs", CILogged.TimeWorkedMs > 0 ? CILogged.TimeWorkedMs.ToString() : string.Empty },
+                { "TimeWorkedText", CILogged.TimeWorkedMsText },
+                { "TimeSource", CILogged.TimeSource },
+                { "ComputerName", Environment.MachineName },
+                { "UpdatedAt", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") }
+            });
+        }
+
+        private void WriteFinalResultFile()
+        {
+            EnsureCurrentSessionFolderInitialized();
+            string path = Path.Combine(_currentSessionFolder, "final.result");
+            LocalStateWriter.UpsertKeyValues(path, new Dictionary<string, string>
+            {
+                { "ContestantShiftId", CILogged.ContestantShiftID.ToString() },
+                { "ContestantId", CILogged.ContestantID.ToString() },
+                { "DivisionShiftId", CILogged.DivisionShiftID.ToString() },
+                { "AnswerSheetId", CILogged.AnswerSheetID.ToString() },
+                { "SubmitTimeUnixMs", CILogged.SubmitTimeUnixMs > 0 ? CILogged.SubmitTimeUnixMs.ToString() : string.Empty },
+                { "SubmitTimeText", CILogged.SubmitTimeText },
+                { "TimeWorkedMs", CILogged.TimeWorkedMs > 0 ? CILogged.TimeWorkedMs.ToString() : string.Empty },
+                { "TimeWorkedText", CILogged.TimeWorkedMsText },
+                { "TimeSource", CILogged.TimeSource },
+                { "Score", rASH != null && rASH.TestScores.HasValue ? rASH.TestScores.Value.ToString("F2") : string.Empty },
+                { "ComputerName", Environment.MachineName },
+                { "UpdatedAt", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") }
+            });
+        }
+
+        private void CopyFileToSessionFolder(string sourcePath)
+        {
+            if (string.IsNullOrWhiteSpace(sourcePath) || !File.Exists(sourcePath))
+            {
+                return;
+            }
+
+            EnsureCurrentSessionFolderInitialized();
+            string targetPath = Path.Combine(_currentSessionFolder, Path.GetFileName(sourcePath));
+            File.Copy(sourcePath, targetPath, true);
+        }
+
+        private string GetConnectionLogPath()
+        {
+            return Path.Combine(@"C:\ProgramData\EXON\Logs",
+                string.Format("{0}_{1}_connection.log", CILogged.ContestantCode, CILogged.ContestantShiftID));
+        }
+
+        private string GetActionLogPath()
+        {
+            return Path.Combine(@"C:\ProgramData\EXON\Logs",
+                string.Format("{0}_{1}_actions.log", CILogged.ContestantCode, CILogged.ContestantShiftID));
+        }
+
+        private string GetLatestSubmitLogPath()
+        {
+            string folder = @"C:\ProgramData\EXON\SubmitLogs";
+            if (!Directory.Exists(folder))
+            {
+                return null;
+            }
+
+            string pattern = string.Format("{0}_{1}_*.submitlog", CILogged.ContestantCode, CILogged.ContestantShiftID);
+            string[] files = Directory.GetFiles(folder, pattern);
+            if (files.Length == 0)
+            {
+                return null;
+            }
+
+            return files.OrderByDescending(x => x).FirstOrDefault();
+        }
+
+        private string GetAnswerHistoryPath()
+        {
+            return Path.Combine(@"C:\ProgramData\EXON\AnswerHistory", CILogged.ContestantShiftID + ".json");
+        }
+
+        private void CaptureCurrentExamLogsToSessionFolder()
+        {
+            EnsureCurrentSessionFolderInitialized();
+            WriteSessionInfoFile();
+            WriteRuntimeStateFile();
+            WriteFinalResultFile();
+            CopyFileToSessionFolder(GetConnectionLogPath());
+            CopyFileToSessionFolder(GetActionLogPath());
+            CopyFileToSessionFolder(GetLatestSubmitLogPath());
+            CopyFileToSessionFolder(GetAnswerHistoryPath());
+        }
+
+        private void UploadCurrentExamLogsToServer()
+        {
+            try
+            {
+                EnsureCurrentSessionFolderInitialized();
+                CaptureCurrentExamLogsToSessionFolder();
+
+                SessionLogUploadService service = new SessionLogUploadService();
+                long? answerSheetId = CILogged.AnswerSheetID > 0 ? (long?)CILogged.AnswerSheetID : null;
+
+                service.UploadCurrentSessionLogs(
+                    _currentSessionFolder,
+                    CILogged.ContestantShiftID,
+                    CILogged.ContestantID,
+                    CILogged.DivisionShiftID,
+                    answerSheetId,
+                    _currentSegmentGuid,
+                    Sql);
+
+                LocalStateWriter.UpsertKeyValues(Path.Combine(_currentSessionFolder, "runtime.state"), new Dictionary<string, string>
+                {
+                    { "UploadStatus", "Success" },
+                    { "UploadedAt", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") },
+                    { "LastUploadMessage", string.Empty }
+                });
+            }
+            catch (Exception ex)
+            {
+                try
+                {
+                    if (!string.IsNullOrWhiteSpace(_currentSessionFolder))
+                    {
+                        LocalStateWriter.UpsertKeyValues(Path.Combine(_currentSessionFolder, "runtime.state"), new Dictionary<string, string>
+                        {
+                            { "UploadStatus", "Fail" },
+                            { "UploadedAt", string.Empty },
+                            { "LastUploadMessage", ex.Message }
+                        });
+                    }
+                }
+                catch
+                {
+                }
+
+                try
+                {
+                    Log.Instance.WriteErrorLog(Properties.Resources.MSG_LOG_ERROR, "UPLOAD_EXAM_LOGS | " + ex);
+                }
+                catch
+                {
+                }
             }
         }
 
